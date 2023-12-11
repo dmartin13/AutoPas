@@ -20,7 +20,70 @@
 namespace mdLib {
 
 /**
- * A functor to handle lennard-jones interactions between two particles (molecules).
+ * The Axilrod-Teller potential
+ * ---
+ * The reference paper of Axilrod and Teller can be found here: https://doi.org/10.1063/1.1723844
+ * \image html 3_body_sketch.png "Sketch of three particles that are used in the Axilrod-Teller Functor" width=400px
+ *
+ * The Axilrod-Teller potential is a model for the interactions of three molecules which appear when the van
+ * der Waals forces are approximated to the third order. It is usually combined with a model for pairwise interaction as
+ * e.g. the Lennard-Jones potential.
+ *
+ * \f[
+ * U_{AT} = \nu \frac{3 \cos\gamma_1 \cos\gamma_2 \cos\gamma_3 + 1}{r_{12}^3 r_{23}^3 r_{31}^3}
+ * \f]
+ *
+ * , where \f$r_{ij}\f$ is the distance between particles \f$i\f$ and \f$j\f$ and \f$\gamma_i\f$ is the angle between
+ * the sides \f$r_{ij}\f$ and \f$r_{ik}\f$. \f$\nu\f$ is a material dependent parameter of the order \f$V\alpha^3\f$,
+ * where \f$V\f$ is the ionization energy and \f$\alpha\f$ the polarizability.
+ *
+ * The cosines can also be expressed as:
+ *
+ * \f[
+ *  \cos\gamma_1 = \frac{ \vec{r}_{12} \cdot \vec{r}_{13}}{|\vec{r}_{12}||\vec{r}_{13}|}
+ * \f]
+ *
+ * , where \f$\vec{r}_{ij}\f$ is the vector from particle \f$i\f$ to particle \f$j\f$ (\f$i \longrightarrow j\f$ ).
+ * It is calculated as \f$\vec{x}_j - \vec{x}_i\f$, where \f$\vec{x}_i\f$ is the position of particle \f$i\f$.
+ *
+ * Therefore, the potential can also be expressed as:
+ *
+ * \f[
+ * U_{AT} = \nu\frac{-3 (\vec{r}_{12} \cdot \vec{r}_{31}) (\vec{r}_{12} \cdot \vec{r}_{23}) (\vec{r}_{31} \cdot
+ * \vec{r}_{23}) + r_{12}^2 r_{23}^2 r_{31}^2}{r_{12}^5 r_{23}^5 r_{31}^5} \f]
+ *
+ * Note that we have \f$-3\f$ because we use the circular vectors \f$\vec{r}_ {12}, \vec{r}_ {23}, \vec{r}_ {31}\f$.
+ *
+ * The derivative can be calculated by applying the chain rule and leads to a resulting Force exerted on particle
+ * \f$1\f$:
+ *
+ * \f[
+ * \vec{F}_ {1} = - \frac{\partial U_ {AT}}{\partial \vec{x}_ 1}
+ * \f]
+ *
+ * \f[
+ * \vec{F}_ {1} = \frac{3}{r_ {12}^5 r_ {23}^5 r_ {31}^5}\cdot
+ * \left[ \left( -5\frac{<>_ 1<>_ 2<>_ 3}{r_ {12}^2} - <>_ 1<>_ 3 + r_ {23}^2r_ {31}^2\right)\cdot \vec{r}_ {12}
+ *          +\left( 5\frac{<>_ 1<>_ 2<>_ 3}{r_ {23}^2} + <>_ 1<>_ 3 - r_ {12}^2r_ {31}^2\right)\cdot\vec{r}_ {23}
+ *          +\left( <>_ 2<>_ 3 - <>_ 2<>_ 1 \right)\cdot \vec{r}_ {31} \right]
+ * \f]
+ *
+ * , where \f$<>_ 1=\vec{r}_ {12}\cdot\vec{r}_ {31}\f$ and so on. The terms are already ordered to show the contribution
+ * from all three distance vectors.
+ *
+ * **Newton's third law**
+ *
+ * To apply Newton's third law, the force on particle \f$2\f$ needs to be calculated in a similar fashion as for
+ * particle \f$1\f$. The force on particle \f$3\f$ can then be written as the negative sum of the other two forces:
+ *
+ * \f[
+ * \vec{F}_3 = -(\vec{F}_1 + \vec{F}_2)
+ * \f]
+ *
+ */
+
+/**
+ * A functor to handle Axilrod-Teller(-Muto) interactions between three particles (molecules).
  * This functor assumes that duplicated calculations are always happening, which is characteristic for a Full-Shell
  * scheme.
  * @tparam Particle The type of particle.
@@ -28,13 +91,12 @@ namespace mdLib {
  * If set to false, _epsilon and _sigma need to be set and the constructor with PPL can be omitted.
  * @tparam useNewton3 Switch for the functor to support newton3 on, off or both. See FunctorN3Modes for possible values.
  * @tparam calculateGlobals Defines whether the global values are to be calculated (energy, virial).
- * @tparam relevantForTuning Whether or not the auto-tuner should consider this functor.
  */
 template <class Particle, bool useMixing = false, autopas::FunctorN3Modes useNewton3 = autopas::FunctorN3Modes::Both,
-          bool calculateGlobals = false, bool relevantForTuning = true>
+          bool calculateGlobals = false>
 class AxilrodTellerFunctor
-    : public autopas::TriwiseFunctor<
-          Particle, AxilrodTellerFunctor<Particle, useMixing, useNewton3, calculateGlobals, relevantForTuning>> {
+    : public autopas::TriwiseFunctor<Particle,
+                                     AxilrodTellerFunctor<Particle, useMixing, useNewton3, calculateGlobals>> {
   /**
    * Structure of the SoAs defined by the particle.
    */
@@ -58,8 +120,7 @@ class AxilrodTellerFunctor
    * @note param dummy is unused, only there to make the signature different from the public constructor.
    */
   explicit AxilrodTellerFunctor(double cutoff, void * /*dummy*/)
-      : autopas::TriwiseFunctor<
-            Particle, AxilrodTellerFunctor<Particle, useMixing, useNewton3, calculateGlobals, relevantForTuning>>(
+      : autopas::TriwiseFunctor<Particle, AxilrodTellerFunctor<Particle, useMixing, useNewton3, calculateGlobals>>(
             cutoff),
         _cutoffSquared{cutoff * cutoff},
         _potentialEnergySum{0.},
@@ -100,14 +161,9 @@ class AxilrodTellerFunctor
     _PPLibrary = &particlePropertiesLibrary;
   }
 
-  /**
-   * Returns name of functor. Intended for use with the iteration logger, to differentiate between calls to
-   * iterateTriwise using different functors in the logs.
-   * @return name of functor.
-   */
-  virtual std::string getName() { return "AxilrodTellerFunctorAutoVec"; }
+  std::string getName() final { return "AxilrodTellerFunctorAutoVec"; }
 
-  bool isRelevantForTuning() final { return relevantForTuning; }
+  bool isRelevantForTuning() final { return true; }
 
   bool allowsNewton3() final {
     return useNewton3 == autopas::FunctorN3Modes::Newton3Only or useNewton3 == autopas::FunctorN3Modes::Both;
@@ -123,61 +179,68 @@ class AxilrodTellerFunctor
     if (i.isDummy() or j.isDummy() or k.isDummy()) {
       return;
     }
+
     auto nu = _nu;
     if constexpr (useMixing) {
       nu = _PPLibrary->getMixingNu(i.getTypeId(), j.getTypeId(), k.getTypeId());
     }
-    auto drij = j.getR() - i.getR();
-    auto drjk = k.getR() - j.getR();
-    auto drki = i.getR() - k.getR();
 
-    double dr2ij = autopas::utils::ArrayMath::dot(drij, drij);
-    double dr2jk = autopas::utils::ArrayMath::dot(drjk, drjk);
-    double dr2ki = autopas::utils::ArrayMath::dot(drki, drki);
+    const auto displacementIJ = j.getR() - i.getR();
+    const auto displacementJK = k.getR() - j.getR();
+    const auto displacementKI = i.getR() - k.getR();
 
-    // Check cutoff
-    if (dr2ij > _cutoffSquared or dr2jk > _cutoffSquared or dr2ki > _cutoffSquared) {
+    const double distSquaredIJ = autopas::utils::ArrayMath::dot(displacementIJ, displacementIJ);
+    const double distSquaredJK = autopas::utils::ArrayMath::dot(displacementJK, displacementJK);
+    const double distSquaredKI = autopas::utils::ArrayMath::dot(displacementKI, displacementKI);
+
+    // Check cutoff for every distance
+    if (distSquaredIJ > _cutoffSquared or distSquaredJK > _cutoffSquared or distSquaredKI > _cutoffSquared) {
       return;
     }
 
-    // Dot products of distances belonging to one particle
-    double dr2i = autopas::utils::ArrayMath::dot(drij, drki);
-    double dr2j = autopas::utils::ArrayMath::dot(drij, drjk);
-    double dr2k = autopas::utils::ArrayMath::dot(drjk, drki);
+    // Dot products of both distance vectors going from one particle
+    const double IJDotKI = autopas::utils::ArrayMath::dot(displacementIJ, displacementKI);
+    const double IJDotJK = autopas::utils::ArrayMath::dot(displacementIJ, displacementJK);
+    const double JKDotKI = autopas::utils::ArrayMath::dot(displacementJK, displacementKI);
 
-    double dr2ijk = dr2i * dr2j * dr2k;
+    const double allDotProducts = IJDotKI * IJDotJK * JKDotKI;
 
-    double dr2 = dr2ij * dr2jk * dr2ki;
-    double dr5 = dr2 * dr2 * std::sqrt(dr2);
-    double invdr5 = nu / dr5;
+    const double allDistsSquared = distSquaredIJ * distSquaredJK * distSquaredKI;
+    const double allDistsTo5 = allDistsSquared * allDistsSquared * std::sqrt(allDistsSquared);
+    const double factor = 3.0 * nu / allDistsTo5;
 
-    auto fi = drjk * dr2i * (dr2j - dr2k) + drij * (dr2j * dr2k - dr2jk * dr2ki + 5.0 * dr2ijk / dr2ij) +
-              drki * (-dr2j * dr2k + dr2ij * dr2jk - 5.0 * dr2ijk / dr2ki);
-    fi *= 3.0 * invdr5;
-    i.addF(fi);
+    const auto forceIDirectionJK = displacementJK * IJDotKI * (IJDotJK - JKDotKI);
+    const auto forceIDirectionIJ =
+        displacementIJ * (IJDotJK * JKDotKI - distSquaredJK * distSquaredKI + 5.0 * allDotProducts / distSquaredIJ);
+    const auto forceIDirectionKI =
+        displacementKI * (-IJDotJK * JKDotKI + distSquaredIJ * distSquaredJK - 5.0 * allDotProducts / distSquaredKI);
 
-    auto fj = fi;
-    auto fk = fi;
+    const auto forceI = (forceIDirectionJK + forceIDirectionIJ + forceIDirectionKI) * factor;
+    i.addF(forceI);
+
+    auto forceJ = forceI;
+    auto forceK = forceI;
     if (newton3) {
-      fj = drki * dr2j * (dr2k - dr2i) + drij * (-dr2i * dr2k + dr2jk * dr2ki - 5.0 * dr2ijk / dr2ij) +
-           drjk * (dr2i * dr2k - dr2ij * dr2ki + 5.0 * dr2ijk / dr2jk);
-      fj *= 3.0 * invdr5;
-      j.addF(fj);
+      const auto forceJDirectionKI = displacementKI * IJDotJK * (JKDotKI - IJDotKI);
+      const auto forceJDirectionIJ =
+          displacementIJ * (-IJDotKI * JKDotKI + distSquaredJK * distSquaredKI - 5.0 * allDotProducts / distSquaredIJ);
+      const auto forceJDirectionJK =
+          displacementJK * (IJDotKI * JKDotKI - distSquaredIJ * distSquaredKI + 5.0 * allDotProducts / distSquaredJK);
 
-      /* auto fk = drij * dr2k * (dr2i - dr2j)
-                + drjk * (- dr2i * dr2j + dr2ij * dr2ki - 5.0 * dr2ijk / dr2jk)
-                + drki * (dr2i * dr2j - dr2ij * dr2jk + 5.0 * dr2ijk / dr2ki);
-      fk *= 3.0 * invdr5; */
-      fk = (fi + fj) * (-1.0);
-      k.addF(fk);
+      forceJ = (forceJDirectionKI + forceJDirectionIJ + forceJDirectionJK) * factor;
+      j.addF(forceJ);
+
+      forceK = (forceI + forceJ) * (-1.0);
+      k.addF(forceK);
     }
 
-    if (calculateGlobals) {
-      // Virial is calculated as f_i * r_i
-      auto virialI = fi * i.getR();
+    if constexpr (calculateGlobals) {
       // Calculate third of total potential energy from 3-body interaction
-      double potentialEnergy = invdr5 * (dr2 - 3.0 * dr2ijk) / 3.0;
+      const double potentialEnergy = factor * (allDistsSquared - 3.0 * allDotProducts) / 9.0;
 
+      // Virial is calculated as f_i * r_i
+      // see Thompson et al.: https://doi.org/10.1063/1.3245303
+      const auto virialI = forceI * i.getR();
       const int threadnum = autopas::autopas_get_thread_num();
       if (i.isOwned()) {
         _aosThreadData[threadnum].potentialEnergySum += potentialEnergy;
@@ -185,12 +248,12 @@ class AxilrodTellerFunctor
       }
       // for non-newton3 particles j and/or k will be considered in a separate calculation
       if (newton3 and j.isOwned()) {
-        auto virialJ = fj * j.getR();
+        const auto virialJ = forceJ * j.getR();
         _aosThreadData[threadnum].potentialEnergySum += potentialEnergy;
         _aosThreadData[threadnum].virialSum += virialJ;
       }
       if (newton3 and k.isOwned()) {
-        auto virialK = fk * k.getR();
+        const auto virialK = forceK * k.getR();
         _aosThreadData[threadnum].potentialEnergySum += potentialEnergy;
         _aosThreadData[threadnum].virialSum += virialK;
       }
@@ -198,72 +261,11 @@ class AxilrodTellerFunctor
   }
 
   /**
-   * @copydoc autopas::TriwiseFunctor::SoAFunctorSingle()
-   * This functor will always use a newton3 like traversal of the soa.
-   * However, it still needs to know about newton3 to correctly add up the global values.
-   */
-  void SoAFunctorSingle(autopas::SoAView<SoAArraysType> soa, bool newton3) final {
-    autopas::utils::ExceptionHandler::exception("AxilrodTellerFunctor::SoAFunctorSingle() is not implemented.");
-  }
-
-  /**
-   * @copydoc autopas::TriwiseFunctor::SoAFunctorPair()
-   */
-  void SoAFunctorPair(autopas::SoAView<SoAArraysType> soa1, autopas::SoAView<SoAArraysType> soa2,
-                      const bool newton3) final {
-    // TODO: should always calculate forces for all particles in soa1, even when newton3 == false
-    autopas::utils::ExceptionHandler::exception("AxilrodTellerFunctor::SoAFunctorPair() is not implemented.");
-  }
-
-  /**
-   * Functor for structure of arrays (SoA)
-   *
-   * This functor calculates the forces
-   * between all particles of soa1 and soa2 and soa3.
-   *
-   * @param soa1 First structure of arrays.
-   * @param soa2 Second structure of arrays.
-   * @param soa3 Third structure of arrays.
-   * @param newton3 defines whether or whether not to use newton 3
-   */
-  void SoAFunctorTriple(autopas::SoAView<SoAArraysType> soa1, autopas::SoAView<SoAArraysType> soa2,
-                        autopas::SoAView<SoAArraysType> soa3, const bool newton3) {
-    autopas::utils::ExceptionHandler::exception("AxilrodTellerFunctor::SoAFunctorTriple() is not implemented.");
-  }
-
- private:
-  /**
-   * Implementation function of SoAFunctorPair(soa1, soa2, newton3)
-   *
-   * @tparam newton3
-   * @param soa1
-   * @param soa2
-   */
-  template <bool newton3>
-  void SoAFunctorPairImpl(autopas::SoAView<SoAArraysType> soa1, autopas::SoAView<SoAArraysType> soa2) {
-    autopas::utils::ExceptionHandler::exception("AxilrodTellerFunctor::SoAFunctorPairImpl() is not implemented.");
-  }
-
- public:
-  // clang-format off
-  /**
-   * @copydoc autopas::TriwiseFunctor::SoAFunctorVerlet()
-   * @note If you want to parallelize this by openmp, please ensure that there
-   * are no dependencies, i.e. introduce colors!
-   */
-  // clang-format on
-  void SoAFunctorVerlet(autopas::SoAView<SoAArraysType> soa, const size_t indexFirst,
-                        const std::vector<size_t, autopas::AlignedAllocator<size_t>> &neighborList,
-                        bool newton3) final {
-    autopas::utils::ExceptionHandler::exception("AxilrodTellerFunctor::SoAFunctorVerlet() is not implemented.");
-  }
-
-  /**
    * Sets the particle properties constants for this functor.
    *
    * This is only necessary if no particlePropertiesLibrary is used.
    *
-   * @param nu
+   * @param nu The Axilrod-Teller potential parameter
    */
   void setParticleProperties(SoAFloatPrecision nu) { _nu = nu; }
 
@@ -425,6 +427,7 @@ class AxilrodTellerFunctor
 
   const double _cutoffSquared;
 
+  // Parameter of the Axilrod-Teller potential
   // not const because they might be reset through PPL
   double _nu = 0.0;
 

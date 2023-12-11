@@ -35,11 +35,11 @@ extern template bool autopas::AutoPas<ParticleType>::computeInteractions(ATFunct
 #endif
 
 extern template bool autopas::AutoPas<ParticleType>::computeInteractions(
-    autopas::FlopCounterFunctor<ParticleType, ForceFunctorAbstract> *);
+    autopas::FlopCounterFunctor<ParticleType, LJFunctorTypeAbstract> *);
 
 #if defined(MD_FLEXIBLE_FUNCTOR_AT)
 extern template bool autopas::AutoPas<ParticleType>::computeInteractions(
-    autopas::FlopCounterFunctor3B<ParticleType, ForceFunctorAbstract3B> *);
+    autopas::FlopCounterFunctor3B<ParticleType, ATFunctorTypeAbstract> *);
 #endif
 //! @endcond
 
@@ -368,18 +368,29 @@ std::tuple<size_t, bool> Simulation::estimateNumberOfIterations() const {
         return static_cast<size_t>(_configuration.tuningMaxEvidence.value);
       } else {
         // @TODO: this can be improved by considering the tuning strategy
-        //  or averaging number of iterations per tuning phase and dynamically adapt prediction
+        // or averaging number of iterations per tuning phase and dynamically adapt prediction
 
         // This estimate is only valid for full search and no restrictions on the cartesian product.
         // add static to only evaluate this once
-        // @TODO: estimate with 3-body
-        static const auto ret = autopas::SearchSpaceGenerators::cartesianProduct(
-                                    _configuration.containerOptions.value, _configuration.traversalOptions.value,
-                                    _configuration.loadEstimatorOptions.value, _configuration.dataLayoutOptions.value,
-                                    _configuration.newton3Options.value, _configuration.cellSizeFactors.value.get(),
-                                    autopas::InteractionTypeOption::pairwise)
-                                    .size();
-        return ret;
+        size_t space2 = 0;
+        size_t space3 = 0;
+        if (_configuration.getInteractionTypes().count(autopas::InteractionTypeOption::pairwise) > 0) {
+          space2 = autopas::SearchSpaceGenerators::cartesianProduct(
+                       _configuration.containerOptions.value, _configuration.traversalOptions.value,
+                       _configuration.loadEstimatorOptions.value, _configuration.dataLayoutOptions.value,
+                       _configuration.newton3Options.value, _configuration.cellSizeFactors.value.get(),
+                       autopas::InteractionTypeOption::pairwise)
+                       .size();
+        }
+        if (_configuration.getInteractionTypes().count(autopas::InteractionTypeOption::threeBody) > 0) {
+          space3 = autopas::SearchSpaceGenerators::cartesianProduct(
+                       _configuration.containerOptions.value, _configuration.traversalOptions3B.value,
+                       _configuration.loadEstimatorOptions.value, _configuration.dataLayoutOptions3B.value,
+                       _configuration.newton3Options3B.value, _configuration.cellSizeFactors.value.get(),
+                       autopas::InteractionTypeOption::threeBody)
+                       .size();
+        }
+        return std::max(space2, space3);
       }
     }();
     // non-tuning iterations + tuning iterations + one iteration after last phase
@@ -694,8 +705,8 @@ void Simulation::logMeasurements() {
 
     if (_configuration.dontMeasureFlops.value) {
       if (_configuration.getInteractionTypes().count(autopas::InteractionTypeOption::pairwise)) {
-        ForceFunctorAbstract ljFunctor(_configuration.cutoff.value, *_configuration.getParticlePropertiesLibrary());
-        autopas::FlopCounterFunctor<ParticleType, ForceFunctorAbstract> flopCounterFunctor(
+        LJFunctorTypeAbstract ljFunctor(_configuration.cutoff.value, *_configuration.getParticlePropertiesLibrary());
+        autopas::FlopCounterFunctor<ParticleType, LJFunctorTypeAbstract> flopCounterFunctor(
             ljFunctor, _autoPasContainer->getCutoff());
         _autoPasContainer->computeInteractions(&flopCounterFunctor);
 
@@ -711,8 +722,8 @@ void Simulation::logMeasurements() {
 
 #ifdef MD_FLEXIBLE_FUNCTOR_AT
       if (_configuration.getInteractionTypes().count(autopas::InteractionTypeOption::threeBody)) {
-        ForceFunctorAbstract3B atFunctor(_configuration.cutoff.value, *_configuration.getParticlePropertiesLibrary());
-        autopas::FlopCounterFunctor3B<ParticleType, ForceFunctorAbstract3B> flopCounterFunctor(
+        ATFunctorTypeAbstract atFunctor(_configuration.cutoff.value, *_configuration.getParticlePropertiesLibrary());
+        autopas::FlopCounterFunctor3B<ParticleType, ATFunctorTypeAbstract> flopCounterFunctor(
             atFunctor, _autoPasContainer->getCutoff());
         _autoPasContainer->computeInteractions(&flopCounterFunctor);
 

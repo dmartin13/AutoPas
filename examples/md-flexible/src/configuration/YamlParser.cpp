@@ -601,16 +601,21 @@ bool MDFlexParser::YamlParser::parseYamlFile(MDFlexConfig &config) {
           siteErrors.clear();
           siteID = std::distance(node[MDFlexConfig::siteStr].begin(), siteIterator);
 
-          const auto epsilon =
-              parseComplexTypeValueSingle<double>(siteIterator->second, config.epsilonMap.name.c_str(), siteErrors);
-          const auto sigma =
-              parseComplexTypeValueSingle<double>(siteIterator->second, config.sigmaMap.name.c_str(), siteErrors);
-          const auto nu =
-              parseComplexTypeValueSingle<double>(siteIterator->second, config.nuMap.name.c_str(), siteErrors, false);
           const auto mass =
               parseComplexTypeValueSingle<double>(siteIterator->second, config.massMap.name.c_str(), siteErrors);
 
-          config.addSiteType(siteID, epsilon, sigma, nu, mass);
+          config.addSiteType(siteID, mass);
+          // Check LJ parameters
+          const auto epsilon = parseComplexTypeValueSingle<double>(siteIterator->second, config.epsilonMap.name.c_str(),
+                                                                   siteErrors, false);
+          const auto sigma = parseComplexTypeValueSingle<double>(siteIterator->second, config.sigmaMap.name.c_str(),
+                                                                 siteErrors, false);
+          config.addLJSite(siteID, epsilon, sigma);
+
+          // Check Axilrod-Teller parameter
+          const auto nu =
+              parseComplexTypeValueSingle<double>(siteIterator->second, config.nuMap.name.c_str(), siteErrors, false);
+          config.addATSite(siteID, nu);
         }
       } else if (key == MDFlexConfig::moleculesStr) {
         // todo throw error if momentOfInertia with zero element is used (physically nonsense + breaks the quaternion

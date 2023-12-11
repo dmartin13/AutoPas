@@ -103,12 +103,7 @@ class LJFunctor
     _PPLibrary = &particlePropertiesLibrary;
   }
 
-  /**
-   * Returns name of functor. Intended for use with the iteration logger, to differentiate between calls to
-   * computeInteractions using different functors in the logs.
-   * @return name of functor.
-   */
-  virtual std::string getName() { return "LJFunctorAutoVec"; }
+  std::string getName() final { return "LJFunctorAutoVec"; }
 
   bool isRelevantForTuning() final { return relevantForTuning; }
 
@@ -239,7 +234,7 @@ class LJFunctor
 
       if constexpr (useMixing) {
         for (unsigned int j = 0; j < soa.size(); ++j) {
-          auto mixingData = _PPLibrary->getMixingData(typeptr[i], typeptr[j]);
+          auto mixingData = _PPLibrary->getLJMixingData(typeptr[i], typeptr[j]);
           sigmaSquareds[j] = mixingData.sigmaSquared;
           epsilon24s[j] = mixingData.epsilon24;
           if constexpr (applyShift) {
