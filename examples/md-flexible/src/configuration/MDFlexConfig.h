@@ -539,6 +539,13 @@ class MDFlexConfig {
       "two cells is greater or equal to that value, the CellFunctor creates a sorted view of the particles to avoid "
       "unnecessary distance checks."};
 
+  /**
+   * respaStepSize
+   */
+  MDFlexOption<size_t, __LINE__> respaStepSize{
+      1, "respa-stepsize", true,
+      "Stepsize for respa"};
+
   // Options for additional Object Generation on command line
   /**
    * boxLength

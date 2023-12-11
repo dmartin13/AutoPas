@@ -310,6 +310,11 @@ bool MDFlexParser::YamlParser::parseYamlFile(MDFlexConfig &config) {
         description = config.sortingThreshold.description;
 
         config.sortingThreshold.value = node[key].as<size_t>();
+      } else if (key == config.respaStepSize.name) {
+        expected = "Unsigned Integer >= 1.";
+        description = config.respaStepSize.description;
+
+        config.respaStepSize.value = node[key].as<size_t>();
       } else if (key == config.traversalOptions.name) {
         expected = "YAML-sequence of possible values.";
         description = config.traversalOptions.description;

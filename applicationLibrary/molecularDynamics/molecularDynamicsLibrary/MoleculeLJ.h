@@ -68,6 +68,12 @@ class MoleculeLJ : public autopas::Particle {
                                        double /*fz*/, double /*oldFx*/, double /*oldFy*/, double /*oldFz*/,
                                        size_t /*typeid*/, autopas::OwnershipState /*ownershipState*/>::Type;
 
+  bool operator==(const MoleculeLJ &rhs) const {
+    return std::tie(_r, _v, _forces, _id) == std::tie(rhs._r, rhs._v, rhs._forces, rhs._id);
+  }
+
+  bool operator!=(const MoleculeLJ &rhs) const { return not(rhs == *this); }
+
   /**
    * Non-const getter for the pointer of this object.
    * @tparam attribute Attribute name.
@@ -145,11 +151,11 @@ class MoleculeLJ : public autopas::Particle {
     } else if constexpr (attribute == AttributeNames::velocityZ) {
       _v[2] = value;
     } else if constexpr (attribute == AttributeNames::forceX) {
-      _f[0] = value;
+      _forces[forceIndex][0] = value;
     } else if constexpr (attribute == AttributeNames::forceY) {
-      _f[1] = value;
+      _forces[forceIndex][1] = value;
     } else if constexpr (attribute == AttributeNames::forceZ) {
-      _f[2] = value;
+      _forces[forceIndex][2] = value;
     } else if constexpr (attribute == AttributeNames::oldForceX) {
       _oldF[0] = value;
     } else if constexpr (attribute == AttributeNames::oldForceY) {
@@ -163,6 +169,37 @@ class MoleculeLJ : public autopas::Particle {
     } else {
       autopas::utils::ExceptionHandler::exception("MoleculeLJ::set() unknown attribute {}", attribute);
     }
+  }
+
+  /**
+   * get the force acting on the particle
+   * @return force
+   */
+  [[nodiscard]] const std::array<double, 3> &getF() const { return _forces[forceIndex]; }
+
+  /**
+   * Set the force acting on the particle
+   * @param f force
+   */
+  void setF(const std::array<double, 3> &f) { _forces[forceIndex] = f; }
+
+  /**
+   * Add a partial force to the force acting on the particle
+   * @param f partial force to be added
+   */
+  void addF(const std::array<double, 3> &f) {
+    using namespace autopas::utils::ArrayMath::literals;
+    // std::cout << "adding force to _forces at index " << forceIndex << std::endl;
+    _forces[forceIndex] += f;
+  }
+
+  /**
+   * Substract a partial force from the force acting on the particle
+   * @param f partial force to be substracted
+   */
+  void subF(const std::array<double, 3> &f) {
+    using namespace autopas::utils::ArrayMath::literals;
+    _forces[forceIndex] -= f;
   }
 
   /**
@@ -195,6 +232,8 @@ class MoleculeLJ : public autopas::Particle {
    */
   [[nodiscard]] std::string toString() const override;
 
+  static void setForceIndex(size_t index) { forceIndex = index; }
+
  protected:
   /**
    * Molecule type id. In single-site simulations, this is used as a siteId to look up site attributes in the particle
@@ -209,6 +248,10 @@ class MoleculeLJ : public autopas::Particle {
    * Old Force of the particle experiences as 3D vector.
    */
   std::array<double, 3> _oldF = {0., 0., 0.};
+
+  std::array<std::array<double, 3>, 2> _forces = {{{0., 0., 0.}, {0., 0., 0.}}};
+
+  static inline size_t forceIndex{0};
 };
 
 }  // namespace mdLib

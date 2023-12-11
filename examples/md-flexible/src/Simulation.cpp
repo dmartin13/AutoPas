@@ -212,7 +212,13 @@ void Simulation::run() {
       autopas::utils::calculateHomogeneityAndMaxDensity(*_autoPasContainer, _domainDecomposition->getGlobalBoxMin(),
                                                         _domainDecomposition->getGlobalBoxMax())
           .first;
+
+  auto threeBodyInteractionsInvolved =
+      static_cast<bool>(_configuration.getInteractionTypes().count(autopas::InteractionTypeOption::threeBody));
+  auto respaActive = _configuration.respaStepSize.value > 1;
+
   _timers.simulate.start();
+
   while (needsMoreIterations()) {
     if (_createVtkFiles and _iteration % _configuration.vtkWriteFrequency.value == 0) {
       _timers.vtk.start();
@@ -220,8 +226,35 @@ void Simulation::run() {
       _timers.vtk.stop();
     }
 
+    auto isRespaIteration = _iteration % _configuration.respaStepSize.value == 0;
+
     _timers.computationalLoad.start();
     if (_configuration.deltaT.value != 0) {
+      // check if r-RESPA should be used
+      if (threeBodyInteractionsInvolved and respaActive and isRespaIteration) {
+        // this is the outer respa-loop step, where the velolcity is integrated using halve a timestep with the slow
+        // force
+
+        if (_iteration == 0) {
+          // do a first 3-body force calculation
+          mdLib::MoleculeLJ::setForceIndex(1);
+          updateForces(ForceType::ThreeBody);
+        }
+
+        updateVelocities(RespaIterationType::OuterStep);
+
+        // reset the threebody force
+#ifdef AUTOPAS_OPENMP
+#pragma omp parallel
+#endif
+        for (auto iter = _autoPasContainer->begin(autopas::IteratorBehavior::owned); iter.isValid(); ++iter) {
+          iter->setF({0., 0., 0.});
+        }
+
+        // set back for two-body interactions
+        mdLib::MoleculeLJ::setForceIndex(0);
+      }
+
       updatePositions();
 #if MD_FLEXIBLE_MODE == MULTISITE
       updateQuaternions();
@@ -273,7 +306,12 @@ void Simulation::run() {
       _timers.computationalLoad.start();
     }
 
-    updateForces();
+    // if respa for integrating threeBody forces is used then only calculate twobody interactions here
+    if (threeBodyInteractionsInvolved and (not respaActive)) {
+      updateForces(ForceType::TwoAndThreeBody);
+    } else {
+      updateForces(ForceType::TwoBody);
+    }
 
     if (_configuration.deltaT.value != 0) {
       updateVelocities();
@@ -281,6 +319,17 @@ void Simulation::run() {
       updateAngularVelocities();
 #endif
       updateThermostat();
+
+      if (respaActive) {
+        // check if the next iteration is a respa iteration
+        if ((_iteration + 1) % _configuration.respaStepSize.value == 0) {
+          // update 3-body force
+          mdLib::MoleculeLJ::setForceIndex(1);
+          updateForces(ForceType::ThreeBody);
+          // update velocity3Body with respaStepSize as timestep factor
+          updateVelocities(RespaIterationType::OuterStep);
+        }
+      }
     }
     _timers.computationalLoad.stop();
 
@@ -424,20 +473,27 @@ void Simulation::updateQuaternions() {
   _timers.quaternionUpdate.stop();
 }
 
-void Simulation::updateForces() {
+void Simulation::updateForces(ForceType forceTypeToCalculate) {
   _timers.forceUpdateTotal.start();
 
   bool isTuningIteration = false;
   long timeIteration = 0;
 
-  // Calculate pairwise forces
-  if (_configuration.getInteractionTypes().count(autopas::InteractionTypeOption::pairwise)) {
+  if ((forceTypeToCalculate == ForceType::TwoBody or forceTypeToCalculate == ForceType::TwoAndThreeBody) and
+      _configuration.getInteractionTypes().count(autopas::InteractionTypeOption::pairwise)) {
+    // Calculate pairwise forces
     _timers.forceUpdatePairwise.start();
     isTuningIteration = (isTuningIteration | calculatePairwiseForces());
     timeIteration += _timers.forceUpdatePairwise.stop();
   }
 
-  if (_configuration.getInteractionTypes().count(autopas::InteractionTypeOption::threeBody)) {
+  // if (_iteration % _configuration.respaStepSize.value == 0) {
+  //   std::cout << "in iteration " << _iteration << ": this is a three body force evaluation iteration" << std::endl;
+  // }
+
+  if ((forceTypeToCalculate == ForceType::ThreeBody or forceTypeToCalculate == ForceType::TwoAndThreeBody) and
+      _configuration.getInteractionTypes().count(autopas::InteractionTypeOption::threeBody)) {
+    // Calculate triwise forces
     _timers.forceUpdateTriwise.start();
     isTuningIteration = (isTuningIteration | calculateTriwiseForces());
     timeIteration += _timers.forceUpdateTriwise.stop();
@@ -466,13 +522,20 @@ void Simulation::updateForces() {
   _timers.forceUpdateTotal.stop();
 }
 
-void Simulation::updateVelocities() {
+void Simulation::updateVelocities(RespaIterationType respaIterationType) {
   const double deltaT = _configuration.deltaT.value;
 
   if (deltaT != 0) {
     _timers.velocityUpdate.start();
-    TimeDiscretization::calculateVelocities(*_autoPasContainer, *(_configuration.getParticlePropertiesLibrary()),
-                                            deltaT);
+
+    if (respaIterationType == RespaIterationType::OuterStep) {
+      TimeDiscretization::calculateVelocities(*_autoPasContainer, *(_configuration.getParticlePropertiesLibrary()),
+                                              deltaT, /*outerRespaStep*/ true, _configuration.respaStepSize.value);
+    } else {
+      TimeDiscretization::calculateVelocities(*_autoPasContainer, *(_configuration.getParticlePropertiesLibrary()),
+                                              deltaT);
+    }
+
     _timers.velocityUpdate.stop();
   }
 }

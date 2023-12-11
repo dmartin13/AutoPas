@@ -25,6 +25,9 @@
  */
 class Simulation {
  public:
+  enum class ForceType : int64_t { TwoBody = 0b0001, ThreeBody = 0b0010, TwoAndThreeBody = 0b0011 };
+  enum class RespaIterationType : int64_t { NoRespa = 0b0000, OuterStep = 0b0001, InnerStep = 0b0010 };
+
   /**
    * Initializes the simulation on a domain according to the arguments passed to the main function.
    * @param configuration: The configuration of this simulation.
@@ -272,12 +275,12 @@ class Simulation {
    * Updates the forces of particles in the local AutoPas container. Includes torque updates (if an appropriate functor
    * is used).
    */
-  void updateForces();
+  void updateForces(ForceType forceTypeToCalculate);
 
   /**
    * Updates the velocities of particles in the local AutoPas container.
    */
-  void updateVelocities();
+  void updateVelocities(RespaIterationType respaIterationType = RespaIterationType::NoRespa);
 
   /**
    * Updates the angular velocities of the particles in the local AutoPas container.

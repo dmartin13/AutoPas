@@ -25,7 +25,7 @@ std::string MoleculeLJ::toString() const {
      << "\nID                 : " << _id
      << "\nPosition           : " << _r
      << "\nVelocity           : " << _v
-     << "\nForce              : " << _f
+     << "\nForce              : " << _forces[forceIndex]
      << "\nOld Force          : " << _oldF
      << "\nType ID            : " << _typeId
      << "\nOwnershipState     : " << _ownershipState;
