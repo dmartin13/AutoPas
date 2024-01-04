@@ -189,7 +189,6 @@ class MoleculeLJ : public autopas::Particle {
    */
   void addF(const std::array<double, 3> &f) {
     using namespace autopas::utils::ArrayMath::literals;
-    // std::cout << "adding force to _forces at index " << forceIndex << std::endl;
     _forces[forceIndex] += f;
   }
 
