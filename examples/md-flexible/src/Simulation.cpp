@@ -195,6 +195,12 @@ Simulation::Simulation(const MDFlexConfig &configuration,
                       _configuration.initTemperature.value, std::numeric_limits<double>::max());
   }
 
+  if (_configuration.respaStepSize.value > 1) {
+    if (_configuration.iterations.value % _configuration.respaStepSize.value != 0) {
+      throw std::runtime_error("The number of iterations must be divisible by the respa-stepsize");
+    }
+  }
+
   _timers.initialization.stop();
 }
 
