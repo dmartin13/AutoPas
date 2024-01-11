@@ -30,7 +30,7 @@
 #include "molecularDynamicsLibrary/LJFunctorSVE.h"
 #endif
 
-#if defined(MD_FLEXIBLE_FUNCTOR_AT)
+#if defined(MD_FLEXIBLE_FUNCTOR_AT) || defined(MD_FLEXIBLE_FUNCTOR_AT_GLOBALS)
 #include "molecularDynamicsLibrary/AxilrodTellerFunctor.h"
 #endif
 
@@ -125,6 +125,18 @@ using ATFunctor = mdLib::AxilrodTellerFunctor<ParticleType, true>;
 
 #endif
 
+#if defined(MD_FLEXIBLE_FUNCTOR_AT_GLOBALS)
+/**
+ * Type of LJFunctorTypeATGlobals used in md-flexible.
+ */
+#if MD_FLEXIBLE_MODE == MULTISITE
+#error "The Axilrod Teller functor does not have support for multisite molecules!"
+#else
+using ATFunctorGlobals = mdLib::AxilrodTellerFunctor<ParticleType, true, autopas::FunctorN3Modes::Both, true>;
+#endif
+
+#endif
+
 /**
  * Type of the Particle Properties Library.
  * Set to the same precision as ParticleType.
@@ -156,6 +168,8 @@ using LJFunctorTypeAbstract = mdLib::LJFunctorSVE<ParticleType, true, true>;
 
 #ifdef MD_FLEXIBLE_FUNCTOR_AT
 using ATFunctorTypeAbstract = mdLib::AxilrodTellerFunctor<ParticleType, true>;
+#elif MD_FLEXIBLE_FUNCTOR_AT_GLOBALS
+using ATFunctorTypeAbstract = mdLib::AxilrodTellerFunctor<ParticleType, true, autopas::FunctorN3Modes::Both, true>;
 #endif
 
 #endif

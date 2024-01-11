@@ -323,7 +323,9 @@ MDFlexParser::exitCodes MDFlexParser::CLIParser::parseInput(int argc, char **arg
         break;
       }
       case decltype(config.functorOption3B)::getoptChar: {
-        if (strArg.find("at") != string::npos or strArg.find("axi") != string::npos) {
+        if (strArg.find("glob") != string::npos) {
+          config.functorOption3B.value = MDFlexConfig::FunctorOption3B::at_Globals;
+        } else if (strArg.find("at") != string::npos or strArg.find("axi") != string::npos) {
           config.functorOption3B.value = MDFlexConfig::FunctorOption3B::at;
         } else {
           cerr << "Unknown 3-body functor: " << strArg << endl;

@@ -21,6 +21,7 @@ list(FILTER MDFlexTest_SRC EXCLUDE REGEX ".*templateInstantiations/computeIntera
 list(FILTER MDFlexTest_SRC EXCLUDE REGEX ".*templateInstantiations/computeInteractionsLJFunctorGlobals.cpp")
 list(FILTER MDFlexTest_SRC EXCLUDE REGEX ".*templateInstantiations/computeInteractionsLJFunctorSVE.cpp")
 list(FILTER MDFlexTest_SRC EXCLUDE REGEX ".*templateInstantiations/computeInteractionsATFunctor.cpp")
+list(FILTER MDFlexTest_SRC EXCLUDE REGEX ".*templateInstantiations/computeInteractionsATFunctorGlobals.cpp")
 list(FILTER MDFlexTest_SRC EXCLUDE REGEX ".*templateInstantiations/computeInteractionsFlopCounterFunctor.cpp")
 list(FILTER MDFlexTest_SRC EXCLUDE REGEX ".*templateInstantiations/computeInteractionsFlopCounterFunctor3B.cpp")
 list(FILTER MDFlexTest_SRC EXCLUDE REGEX ".*Simulation.((cpp)|h)")

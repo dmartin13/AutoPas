@@ -356,7 +356,7 @@ class AxilrodTellerFunctor
 
       _postProcessed = true;
 
-      AutoPasLog(TRACE, "Final potential energy {}", _potentialEnergySum);
+      AutoPasLog(INFO, "Final potential energy ATM {}", _potentialEnergySum);
       AutoPasLog(TRACE, "Final virial           {}", _virialSum[0] + _virialSum[1] + _virialSum[2]);
     }
   }

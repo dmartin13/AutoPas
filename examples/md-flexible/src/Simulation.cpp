@@ -33,11 +33,14 @@ extern template bool autopas::AutoPas<ParticleType>::computeInteractions(LJFunct
 #if defined(MD_FLEXIBLE_FUNCTOR_AT)
 extern template bool autopas::AutoPas<ParticleType>::computeInteractions(ATFunctor *);
 #endif
+#if defined(MD_FLEXIBLE_FUNCTOR_AT_GLOBALS)
+extern template bool autopas::AutoPas<ParticleType>::computeInteractions(ATFunctorGlobals *);
+#endif
 
 extern template bool autopas::AutoPas<ParticleType>::computeInteractions(
     autopas::FlopCounterFunctor<ParticleType, LJFunctorTypeAbstract> *);
 
-#if defined(MD_FLEXIBLE_FUNCTOR_AT)
+#if defined(MD_FLEXIBLE_FUNCTOR_AT) || defined(MD_FLEXIBLE_FUNCTOR_AT_GLOBALS)
 extern template bool autopas::AutoPas<ParticleType>::computeInteractions(
     autopas::FlopCounterFunctor3B<ParticleType, ATFunctorTypeAbstract> *);
 #endif
@@ -843,7 +846,15 @@ T Simulation::applyWithChosenFunctor3B(F f) {
           "-DMD_FLEXIBLE_FUNCTOR_AT=ON`.");
 #endif
     }
-    default: {
+    case MDFlexConfig::FunctorOption3B::at_Globals: {
+#if defined(MD_FLEXIBLE_FUNCTOR_AT_GLOBALS)
+      return f(ATFunctorGlobals{cutoff, particlePropertiesLibrary});
+#else
+      throw std::runtime_error(
+          "MD-Flexible was not compiled with support for AxilrodTeller Functor. Activate it via `cmake "
+          "-DMD_FLEXIBLE_FUNCTOR_AT_GLOBALS=ON`.");
+#endif
+    } default: {
       throw std::runtime_error("Unknown 3-body functor choice" +
                                std::to_string(static_cast<int>(_configuration.functorOption3B.value)));
     }

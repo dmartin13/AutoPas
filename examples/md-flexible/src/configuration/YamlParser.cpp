@@ -242,7 +242,9 @@ bool MDFlexParser::YamlParser::parseYamlFile(MDFlexConfig &config) {
 
         auto strArg = node[key].as<std::string>();
         transform(strArg.begin(), strArg.end(), strArg.begin(), ::tolower);
-        if (strArg.find("at") != std::string::npos or strArg.find("axilrod-teller") != std::string::npos) {
+        if (strArg.find("glob") != std::string::npos) {
+          config.functorOption3B.value = MDFlexConfig::FunctorOption3B::at_Globals;
+        } else if (strArg.find("at") != std::string::npos or strArg.find("axilrod-teller") != std::string::npos) {
           config.functorOption3B.value = MDFlexConfig::FunctorOption3B::at;
         } else {
           throw std::runtime_error("Unrecognized 3-body functor!");
