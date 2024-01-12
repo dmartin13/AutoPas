@@ -1,14 +1,14 @@
 # This yaml file creates a simple simulation box to be run with 3-body functors.
-container                            :  [LinkedCells] # DirectSum
+container                            :  [DirectSum] # LinkedCells
 functor-3b                           :  axilrod-teller
-traversal-3b                         :  [lc_c01_3b] # ds_sequential_3b
-newton3-3b                           :  [disabled]
+traversal-3b                         :  [ds_sequential_3b] # lc_c01_3b
+newton3-3b                           :  [enabled]
 data-layout-3b                       :  [AoS]
 
 # Uncomment to combine pairwise and 3-body interaction
 functor                              :  lj
-traversal                            :  [lc_c01]
-newton3                              :  [disabled]
+traversal                            :  [ds_sequential]
+newton3                              :  [enabled]
 data-layout                          :  [AoS]
 
 verlet-rebuild-frequency             :  10
@@ -19,7 +19,7 @@ tuning-interval                      :  2000
 tuning-samples                       :  3
 tuning-max-evidence                  :  10
 
-cutoff                               :  30
+cutoff                               :  1000
 cell-size                            :  [1]
 deltaT                               :  0.002
 iterations                           :  100
