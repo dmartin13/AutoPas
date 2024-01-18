@@ -190,6 +190,12 @@ class MoleculeLJ : public autopas::Particle {
   void setF(const std::array<double, 3> &f) { _forces[forceIndex] = f; }
 
   /**
+   * Set the force acting on the particle for specific force buffer
+   * @param f force
+   */
+  void setF(const size_t fIndex, const std::array<double, 3> &f) { _forces[fIndex] = f; }
+
+  /**
    * Add a partial force to the force acting on the particle
    * @param f partial force to be added
    */

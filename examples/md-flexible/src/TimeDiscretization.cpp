@@ -29,6 +29,9 @@ void calculatePositionsAndResetForces(autopas::AutoPas<ParticleType> &autoPasCon
     auto f = forceSplitActive ? iter->getF(0) + iter->getF(1) : iter->getF();
     iter->setOldF(f);
     iter->setF(globalForce);
+    if (forceSplitActive) {
+      iter->setF(1, {0, 0, 0});
+    }
     v *= deltaT;
     f *= (deltaT * deltaT / (2 * m));
     const auto displacement = v + f;
