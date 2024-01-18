@@ -178,6 +178,12 @@ class MoleculeLJ : public autopas::Particle {
   [[nodiscard]] const std::array<double, 3> &getF() const { return _forces[forceIndex]; }
 
   /**
+   * get the force acting on the particle at specific force index
+   * @return force
+   */
+  [[nodiscard]] const std::array<double, 3> &getF(const size_t fIndex) const { return _forces[fIndex]; }
+
+  /**
    * Set the force acting on the particle
    * @param f force
    */
@@ -232,6 +238,7 @@ class MoleculeLJ : public autopas::Particle {
   [[nodiscard]] std::string toString() const override;
 
   static void setForceIndex(size_t index) { forceIndex = index; }
+  static size_t getForceIndex() { return forceIndex; }
 
  protected:
   /**

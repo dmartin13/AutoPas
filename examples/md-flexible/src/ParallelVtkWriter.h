@@ -12,6 +12,7 @@
 
 #include "autopas/AutoPas.h"
 #include "autopas/tuning/Configuration.h"
+#include "options/ForceType.h"
 #include "src/TypeDefinitions.h"
 #include "src/domainDecomposition/RegularGridDecomposition.h"
 
@@ -41,7 +42,7 @@ class ParallelVtkWriter {
    * @param decomposition: The decomposition of the global domain.
    */
   void recordTimestep(size_t currentIteration, const autopas::AutoPas<ParticleType> &autoPasContainer,
-                      const RegularGridDecomposition &decomposition);
+                      const RegularGridDecomposition &decomposition, ForceType forceType);
 
  private:
   /**
@@ -98,7 +99,8 @@ class ParallelVtkWriter {
    * @param currentIteration: The simulations current iteration.
    * @param autoPasContainer The AutoPas container whose owned particles will be logged.
    */
-  void recordParticleStates(size_t currentIteration, const autopas::AutoPas<ParticleType> &autoPasContainer);
+  void recordParticleStates(size_t currentIteration, const autopas::AutoPas<ParticleType> &autoPasContainer,
+                            ForceType forceType);
 
   /**
    * Writes the current domain subdivision into vtk files.

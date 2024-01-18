@@ -235,6 +235,7 @@ class AxilrodTellerFunctor
     }
 
     if constexpr (calculateGlobals) {
+      numInteractionsPerformed++;
       // Calculate third of total potential energy from 3-body interaction
       const double potentialEnergy = factor * (allDistsSquared - 3.0 * allDotProducts) / 9.0;
 
@@ -358,6 +359,7 @@ class AxilrodTellerFunctor
 
       AutoPasLog(INFO, "Final potential energy ATM {}", _potentialEnergySum);
       AutoPasLog(TRACE, "Final virial           {}", _virialSum[0] + _virialSum[1] + _virialSum[2]);
+      AutoPasLog(INFO, "Total num interactions Threebody {}", numInteractionsPerformed);
     }
   }
 
@@ -444,5 +446,7 @@ class AxilrodTellerFunctor
 
   // defines whether or whether not the global values are already preprocessed
   bool _postProcessed;
+
+  size_t numInteractionsPerformed{0};
 };
 }  // namespace mdLib

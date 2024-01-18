@@ -151,6 +151,7 @@ class LJFunctor
       j.subF(f);
     }
     if (calculateGlobals) {
+      numInteractionsPerformed++;
       auto virial = dr * f;
       // Here we calculate either the potential energy * 6.
       // For newton3, this potential energy contribution is distributed evenly to the two molecules.
@@ -648,6 +649,7 @@ class LJFunctor
 
       AutoPasLog(INFO, "Final potential energy LJ {}", _potentialEnergySum);
       AutoPasLog(TRACE, "Final virial           {}", _virialSum[0] + _virialSum[1] + _virialSum[2]);
+      AutoPasLog(INFO, "Total num interactions Twobody {}", numInteractionsPerformed);
     }
   }
 
@@ -995,5 +997,7 @@ class LJFunctor
 
   // defines whether or whether not the global values are already preprocessed
   bool _postProcessed;
+
+  size_t numInteractionsPerformed{0};
 };
 }  // namespace mdLib
