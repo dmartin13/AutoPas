@@ -228,15 +228,10 @@ void Simulation::run() {
 
   _timers.simulate.start();
 
-  bool splitForces = respaActive ? false : true;
-
   while (needsMoreIterations()) {
     if (_createVtkFiles and _iteration % _configuration.vtkWriteFrequency.value == 0) {
       _timers.vtk.start();
-      _vtkWriter->recordTimestep(
-          _iteration, *_autoPasContainer, *_domainDecomposition,
-          respaActive ? (ForceType::TwoAndThreeBody)
-                      : (threeBodyInteractionsInvolved ? ForceType::TwoAndThreeBody : ForceType::TwoBody));
+      _vtkWriter->recordTimestep(_iteration, *_autoPasContainer, *_domainDecomposition);
       _timers.vtk.stop();
     }
 
@@ -252,10 +247,10 @@ void Simulation::run() {
         if (_iteration == 0) {
           // do a first 3-body force calculation
           mdLib::MoleculeLJ::setForceIndex(1);
-          updateForces(ForceType::ThreeBody, splitForces);
+          updateForces(ForceType::ThreeBody);
         }
 
-        updateVelocities(RespaIterationType::OuterStep, splitForces);
+        updateVelocities(RespaIterationType::OuterStep);
 
         // reset the threebody force
 #ifdef AUTOPAS_OPENMP
@@ -269,7 +264,7 @@ void Simulation::run() {
         mdLib::MoleculeLJ::setForceIndex(0);
       }
 
-      updatePositions(splitForces);
+      updatePositions();
 #if MD_FLEXIBLE_MODE == MULTISITE
       updateQuaternions();
 #endif
@@ -322,13 +317,13 @@ void Simulation::run() {
 
     // if respa for integrating threeBody forces is used then only calculate twobody interactions here
     if (threeBodyInteractionsInvolved and (not respaActive)) {
-      updateForces(ForceType::TwoAndThreeBody, splitForces);
+      updateForces(ForceType::TwoAndThreeBody);
     } else {
-      updateForces(ForceType::TwoBody, splitForces);
+      updateForces(ForceType::TwoBody);
     }
 
     if (_configuration.deltaT.value != 0) {
-      updateVelocities(RespaIterationType::NoRespa, splitForces);
+      updateVelocities();
 #if MD_FLEXIBLE_MODE == MULTISITE
       updateAngularVelocities();
 #endif
@@ -339,9 +334,9 @@ void Simulation::run() {
         if ((_iteration + 1) % _configuration.respaStepSize.value == 0) {
           // update 3-body force
           mdLib::MoleculeLJ::setForceIndex(1);
-          updateForces(ForceType::ThreeBody, splitForces);
+          updateForces(ForceType::ThreeBody);
           // update velocity3Body with respaStepSize as timestep factor
-          updateVelocities(RespaIterationType::OuterStep, splitForces);
+          updateVelocities(RespaIterationType::OuterStep);
         }
       }
     }
@@ -366,10 +361,7 @@ void Simulation::run() {
 
   // Record last state of simulation.
   if (_createVtkFiles) {
-    _vtkWriter->recordTimestep(_iteration, *_autoPasContainer, *_domainDecomposition,
-                               respaActive
-                                   ? (ForceType::TwoAndThreeBody)
-                                   : (threeBodyInteractionsInvolved ? ForceType::TwoAndThreeBody : ForceType::TwoBody));
+    _vtkWriter->recordTimestep(_iteration, *_autoPasContainer, *_domainDecomposition);
   }
 }
 
@@ -485,11 +477,11 @@ std::string Simulation::timerToString(const std::string &name, long timeNS, int 
   return ss.str();
 }
 
-void Simulation::updatePositions(const bool forceSplitActive) {
+void Simulation::updatePositions() {
   _timers.positionUpdate.start();
   TimeDiscretization::calculatePositionsAndResetForces(
       *_autoPasContainer, *(_configuration.getParticlePropertiesLibrary()), _configuration.deltaT.value,
-      _configuration.globalForce.value, _configuration.fastParticlesThrow.value, forceSplitActive);
+      _configuration.globalForce.value, _configuration.fastParticlesThrow.value);
   _timers.positionUpdate.stop();
 }
 
@@ -501,19 +493,14 @@ void Simulation::updateQuaternions() {
   _timers.quaternionUpdate.stop();
 }
 
-void Simulation::updateForces(ForceType forceTypeToCalculate, bool splitForces) {
+void Simulation::updateForces(ForceType forceTypeToCalculate) {
   _timers.forceUpdateTotal.start();
 
   bool isTuningIteration = false;
   long timeIteration = 0;
 
-  const auto forceIndex = mdLib::MoleculeLJ::getForceIndex();
-
   if ((forceTypeToCalculate == ForceType::TwoBody or forceTypeToCalculate == ForceType::TwoAndThreeBody) and
       _configuration.getInteractionTypes().count(autopas::InteractionTypeOption::pairwise)) {
-    if (splitForces) {
-      mdLib::MoleculeLJ::setForceIndex(0);
-    }
     // Calculate pairwise forces
     _timers.forceUpdatePairwise.start();
     isTuningIteration = (isTuningIteration | calculatePairwiseForces());
@@ -526,17 +513,10 @@ void Simulation::updateForces(ForceType forceTypeToCalculate, bool splitForces) 
 
   if ((forceTypeToCalculate == ForceType::ThreeBody or forceTypeToCalculate == ForceType::TwoAndThreeBody) and
       _configuration.getInteractionTypes().count(autopas::InteractionTypeOption::threeBody)) {
-    if (splitForces) {
-      mdLib::MoleculeLJ::setForceIndex(1);
-    }
     // Calculate triwise forces
     _timers.forceUpdateTriwise.start();
     isTuningIteration = (isTuningIteration | calculateTriwiseForces());
     timeIteration += _timers.forceUpdateTriwise.stop();
-  }
-
-  if (splitForces) {
-    mdLib::MoleculeLJ::setForceIndex(forceIndex);
   }
 
   // count time spent for tuning
@@ -562,7 +542,7 @@ void Simulation::updateForces(ForceType forceTypeToCalculate, bool splitForces) 
   _timers.forceUpdateTotal.stop();
 }
 
-void Simulation::updateVelocities(RespaIterationType respaIterationType, const bool splitForcesActive) {
+void Simulation::updateVelocities(RespaIterationType respaIterationType) {
   const double deltaT = _configuration.deltaT.value;
 
   if (deltaT != 0) {
@@ -570,11 +550,10 @@ void Simulation::updateVelocities(RespaIterationType respaIterationType, const b
 
     if (respaIterationType == RespaIterationType::OuterStep) {
       TimeDiscretization::calculateVelocities(*_autoPasContainer, *(_configuration.getParticlePropertiesLibrary()),
-                                              deltaT, /*outerRespaStep*/ true, _configuration.respaStepSize.value,
-                                              splitForcesActive);
+                                              deltaT, /*outerRespaStep*/ true, _configuration.respaStepSize.value);
     } else {
       TimeDiscretization::calculateVelocities(*_autoPasContainer, *(_configuration.getParticlePropertiesLibrary()),
-                                              deltaT, /*outerRespaStep*/ false, -1, splitForcesActive);
+                                              deltaT);
     }
 
     _timers.velocityUpdate.stop();
@@ -875,8 +854,7 @@ T Simulation::applyWithChosenFunctor3B(F f) {
           "MD-Flexible was not compiled with support for AxilrodTeller Functor. Activate it via `cmake "
           "-DMD_FLEXIBLE_FUNCTOR_AT_GLOBALS=ON`.");
 #endif
-    }
-    default: {
+    } default: {
       throw std::runtime_error("Unknown 3-body functor choice" +
                                std::to_string(static_cast<int>(_configuration.functorOption3B.value)));
     }

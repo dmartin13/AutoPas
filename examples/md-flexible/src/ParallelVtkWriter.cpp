@@ -40,8 +40,8 @@ ParallelVtkWriter::ParallelVtkWriter(std::string sessionName, const std::string 
 }
 
 void ParallelVtkWriter::recordTimestep(size_t currentIteration, const autopas::AutoPas<ParticleType> &autoPasContainer,
-                                       const RegularGridDecomposition &decomposition, ForceType forceType) {
-  recordParticleStates(currentIteration, autoPasContainer, forceType);
+                                       const RegularGridDecomposition &decomposition) {
+  recordParticleStates(currentIteration, autoPasContainer);
   // TODO: add 3-body configuration
   auto currentConfig = *autoPasContainer.getCurrentConfig().begin();
   recordDomainSubdivision(currentIteration, currentConfig, decomposition);
@@ -53,8 +53,7 @@ void ParallelVtkWriter::recordTimestep(size_t currentIteration, const autopas::A
  * The streams can be combined to a single output stream after iterating over the particles, once.
  */
 void ParallelVtkWriter::recordParticleStates(size_t currentIteration,
-                                             const autopas::AutoPas<ParticleType> &autoPasContainer,
-                                             ForceType forceType) {
+                                             const autopas::AutoPas<ParticleType> &autoPasContainer) {
   if (_mpiRank == 0) {
     createPvtuFile(currentIteration);
   }
@@ -87,31 +86,12 @@ void ParallelVtkWriter::recordParticleStates(size_t currentIteration,
   timestepFile << "        </DataArray>\n";
 
   // print forces
-  const auto forceIndex = mdLib::MoleculeLJ::getForceIndex();
-
-  if (forceType == ForceType::TwoBody or forceType == ForceType::TwoAndThreeBody) {
-    mdLib::MoleculeLJ::setForceIndex(0);
-    timestepFile
-        << "        <DataArray Name=\"forcesTwoBody\" NumberOfComponents=\"3\" format=\"ascii\" type=\"Float32\">\n";
-    for (auto particle = autoPasContainer.begin(autopas::IteratorBehavior::owned); particle.isValid(); ++particle) {
-      auto f = particle->getF();
-      timestepFile << "        " << f[0] << " " << f[1] << " " << f[2] << "\n";
-    }
-    timestepFile << "        </DataArray>\n";
+  timestepFile << "        <DataArray Name=\"forces\" NumberOfComponents=\"3\" format=\"ascii\" type=\"Float32\">\n";
+  for (auto particle = autoPasContainer.begin(autopas::IteratorBehavior::owned); particle.isValid(); ++particle) {
+    auto f = particle->getF();
+    timestepFile << "        " << f[0] << " " << f[1] << " " << f[2] << "\n";
   }
-
-  if (forceType == ForceType::ThreeBody or forceType == ForceType::TwoAndThreeBody) {
-    mdLib::MoleculeLJ::setForceIndex(1);
-    timestepFile
-        << "        <DataArray Name=\"forcesThreeBody\" NumberOfComponents=\"3\" format=\"ascii\" type=\"Float32\">\n";
-    for (auto particle = autoPasContainer.begin(autopas::IteratorBehavior::owned); particle.isValid(); ++particle) {
-      auto f = particle->getF();
-      timestepFile << "        " << f[0] << " " << f[1] << " " << f[2] << "\n";
-    }
-    timestepFile << "        </DataArray>\n";
-  }
-
-  mdLib::MoleculeLJ::setForceIndex(forceIndex);
+  timestepFile << "        </DataArray>\n";
 
 #if MD_FLEXIBLE_MODE == MULTISITE
   // print quaternions

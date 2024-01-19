@@ -10,7 +10,7 @@ namespace TimeDiscretization {
 void calculatePositionsAndResetForces(autopas::AutoPas<ParticleType> &autoPasContainer,
                                       const ParticlePropertiesLibraryType &particlePropertiesLibrary,
                                       const double &deltaT, const std::array<double, 3> &globalForce,
-                                      bool fastParticlesThrow, bool forceSplitActive) {
+                                      bool fastParticlesThrow) {
   using autopas::utils::ArrayUtils::operator<<;
   using autopas::utils::ArrayMath::dot;
   using namespace autopas::utils::ArrayMath::literals;
@@ -26,12 +26,9 @@ void calculatePositionsAndResetForces(autopas::AutoPas<ParticleType> &autoPasCon
   for (auto iter = autoPasContainer.begin(autopas::IteratorBehavior::owned); iter.isValid(); ++iter) {
     const auto m = particlePropertiesLibrary.getMolMass(iter->getTypeId());
     auto v = iter->getV();
-    auto f = forceSplitActive ? iter->getF(0) + iter->getF(1) : iter->getF();
+    auto f = iter->getF();
     iter->setOldF(f);
     iter->setF(globalForce);
-    if (forceSplitActive) {
-      iter->setF(1, {0, 0, 0});
-    }
     v *= deltaT;
     f *= (deltaT * deltaT / (2 * m));
     const auto displacement = v + f;
@@ -143,7 +140,7 @@ void calculateQuaternionsAndResetTorques(autopas::AutoPas<ParticleType> &autoPas
 
 void calculateVelocities(autopas::AutoPas<ParticleType> &autoPasContainer,
                          const ParticlePropertiesLibraryType &particlePropertiesLibrary, const double &deltaT,
-                         const bool outerRespaStep, const size_t respaStepSize, const bool forceSplitActive) {
+                         const bool outerRespaStep, const size_t respaStepSize) {
   // helper declarations for operations with vector
   using namespace autopas::utils::ArrayMath::literals;
 
@@ -152,7 +149,7 @@ void calculateVelocities(autopas::AutoPas<ParticleType> &autoPasContainer,
 #endif
   for (auto iter = autoPasContainer.begin(autopas::IteratorBehavior::owned); iter.isValid(); ++iter) {
     const auto molecularMass = particlePropertiesLibrary.getMolMass(iter->getTypeId());
-    const auto force = forceSplitActive ? iter->getF(0) + iter->getF(1) : iter->getF();
+    const auto force = iter->getF();
     if (not outerRespaStep) {
       const auto oldForce = iter->getOldF();
       const auto changeInVel = (force + oldForce) * (deltaT / (2 * molecularMass));

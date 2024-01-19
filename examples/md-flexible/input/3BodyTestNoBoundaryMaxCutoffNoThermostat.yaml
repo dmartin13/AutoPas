@@ -1,12 +1,12 @@
 # This yaml file creates a simple simulation box to be run with 3-body functors.
 container                            :  [DirectSum] # LinkedCells
-functor-3b                           :  axilrod-teller glob
+functor-3b                           :  axilrod-teller
 traversal-3b                         :  [ds_sequential_3b] # lc_c01_3b
 newton3-3b                           :  [enabled]
 data-layout-3b                       :  [AoS]
 
 # Uncomment to combine pairwise and 3-body interaction
-functor                              :  lj glob
+functor                              :  lj
 traversal                            :  [ds_sequential]
 newton3                              :  [enabled]
 data-layout                          :  [AoS]
@@ -22,7 +22,7 @@ tuning-max-evidence                  :  10
 cutoff                               :  1000
 cell-size                            :  [1]
 deltaT                               :  0.002
-iterations                           :  5
+iterations                           :  100
 boundary-type                        :  [none, none, none]
 fastParticlesThrow                   :  false
 respa-stepsize                       :  1
@@ -48,7 +48,7 @@ Objects:
 #  thermostatInterval                 :  25
 #  addBrownianMotion                  :  true
 
-log-level                            :  info
+log-level                            :  warn
 no-flops                             :  false
 no-end-config                        :  true
 no-progress-bar                      :  false

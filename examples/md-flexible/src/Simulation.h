@@ -13,7 +13,6 @@
 
 #include "TimeDiscretization.h"
 #include "autopas/AutoPasDecl.h"
-#include "options/ForceType.h"
 #include "src/ParallelVtkWriter.h"
 #include "src/TypeDefinitions.h"
 #include "src/configuration/MDFlexConfig.h"
@@ -26,6 +25,7 @@
  */
 class Simulation {
  public:
+  enum class ForceType : int64_t { TwoBody = 0b0001, ThreeBody = 0b0010, TwoAndThreeBody = 0b0011 };
   enum class RespaIterationType : int64_t { NoRespa = 0b0000, OuterStep = 0b0001, InnerStep = 0b0010 };
 
   /**
@@ -266,7 +266,7 @@ class Simulation {
   /**
    * Updates the position of particles in the local AutoPas container.
    */
-  void updatePositions(const bool forceSplitActive);
+  void updatePositions();
 
   /**
    * Update the quaternion orientation of the particles in the local AutoPas container.
@@ -277,12 +277,12 @@ class Simulation {
    * Updates the forces of particles in the local AutoPas container. Includes torque updates (if an appropriate functor
    * is used).
    */
-  void updateForces(ForceType forceTypeToCalculate, bool splitForces);
+  void updateForces(ForceType forceTypeToCalculate);
 
   /**
    * Updates the velocities of particles in the local AutoPas container.
    */
-  void updateVelocities(RespaIterationType respaIterationType, const bool splitForcesActive);
+  void updateVelocities(RespaIterationType respaIterationType = RespaIterationType::NoRespa);
 
   /**
    * Updates the angular velocities of the particles in the local AutoPas container.
