@@ -235,7 +235,8 @@ void Simulation::run() {
       _timers.vtk.stop();
     }
 
-    auto isRespaIteration = _iteration % _configuration.respaStepSize.value == 0;
+    const bool isRespaIteration = _iteration % _configuration.respaStepSize.value == 0;
+    const bool nextIsRespaIteration = (_iteration + 1) % _configuration.respaStepSize.value == 0;
 
     _timers.computationalLoad.start();
     if (_configuration.deltaT.value != 0) {
@@ -246,22 +247,10 @@ void Simulation::run() {
 
         if (_iteration == 0) {
           // do a first 3-body force calculation
-          mdLib::MoleculeLJ::setForceIndex(1);
           updateForces(ForceType::ThreeBody);
         }
 
-        updateVelocities(RespaIterationType::OuterStep);
-
-        // reset the threebody force
-#ifdef AUTOPAS_OPENMP
-#pragma omp parallel
-#endif
-        for (auto iter = _autoPasContainer->begin(autopas::IteratorBehavior::owned); iter.isValid(); ++iter) {
-          iter->setF({0., 0., 0.});
-        }
-
-        // set back for two-body interactions
-        mdLib::MoleculeLJ::setForceIndex(0);
+        updateVelocities(/*resetForce*/ true, RespaIterationType::OuterStep);
       }
 
       updatePositions();
@@ -323,7 +312,7 @@ void Simulation::run() {
     }
 
     if (_configuration.deltaT.value != 0) {
-      updateVelocities();
+      updateVelocities(respaActive and nextIsRespaIteration);
 #if MD_FLEXIBLE_MODE == MULTISITE
       updateAngularVelocities();
 #endif
@@ -333,10 +322,9 @@ void Simulation::run() {
         // check if the next iteration is a respa iteration
         if ((_iteration + 1) % _configuration.respaStepSize.value == 0) {
           // update 3-body force
-          mdLib::MoleculeLJ::setForceIndex(1);
           updateForces(ForceType::ThreeBody);
           // update velocity3Body with respaStepSize as timestep factor
-          updateVelocities(RespaIterationType::OuterStep);
+          updateVelocities(false, RespaIterationType::OuterStep);
         }
       }
     }
@@ -542,7 +530,7 @@ void Simulation::updateForces(ForceType forceTypeToCalculate) {
   _timers.forceUpdateTotal.stop();
 }
 
-void Simulation::updateVelocities(RespaIterationType respaIterationType) {
+void Simulation::updateVelocities(bool resetForces, RespaIterationType respaIterationType) {
   const double deltaT = _configuration.deltaT.value;
 
   if (deltaT != 0) {
@@ -550,10 +538,11 @@ void Simulation::updateVelocities(RespaIterationType respaIterationType) {
 
     if (respaIterationType == RespaIterationType::OuterStep) {
       TimeDiscretization::calculateVelocities(*_autoPasContainer, *(_configuration.getParticlePropertiesLibrary()),
-                                              deltaT, /*outerRespaStep*/ true, _configuration.respaStepSize.value);
+                                              deltaT, resetForces, /*outerRespaStep*/ true,
+                                              _configuration.respaStepSize.value);
     } else {
       TimeDiscretization::calculateVelocities(*_autoPasContainer, *(_configuration.getParticlePropertiesLibrary()),
-                                              deltaT);
+                                              deltaT, resetForces);
     }
 
     _timers.velocityUpdate.stop();
@@ -854,7 +843,8 @@ T Simulation::applyWithChosenFunctor3B(F f) {
           "MD-Flexible was not compiled with support for AxilrodTeller Functor. Activate it via `cmake "
           "-DMD_FLEXIBLE_FUNCTOR_AT_GLOBALS=ON`.");
 #endif
-    } default: {
+    }
+    default: {
       throw std::runtime_error("Unknown 3-body functor choice" +
                                std::to_string(static_cast<int>(_configuration.functorOption3B.value)));
     }

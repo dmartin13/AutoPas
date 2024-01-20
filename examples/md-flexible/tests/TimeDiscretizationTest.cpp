@@ -51,7 +51,7 @@ TEST_F(TimeDiscretizationTest, testCalculateVelocities) {
   initPPL(*PPL);
 
   // First timestep
-  TimeDiscretization::calculateVelocities(*autoPas, *PPL, 0.1);
+  TimeDiscretization::calculateVelocities(*autoPas, *PPL, 0.1, false);
   for (auto iter = autoPas->begin(); iter.isValid(); ++iter) {
     // only velocity in one direction is expected, as the force is initialized to point only in z-direction.
     EXPECT_EQ(iter->getV()[0], 0);
@@ -65,7 +65,7 @@ TEST_F(TimeDiscretizationTest, testCalculateVelocities) {
   }
 
   // Second timestep
-  TimeDiscretization::calculateVelocities(*autoPas, *PPL, 0.1);
+  TimeDiscretization::calculateVelocities(*autoPas, *PPL, 0.1, false);
   for (auto iter = autoPas->begin(); iter.isValid(); ++iter) {
     // only velocity in one direction is expected
     EXPECT_EQ(iter->getV()[0], 0);

@@ -51,6 +51,9 @@ class MoleculeLJ : public autopas::Particle {
     oldForceX,
     oldForceY,
     oldForceZ,
+    tempForceX,
+    tempForceY,
+    tempForceZ,
     typeId,
     ownershipState
   };
@@ -66,10 +69,11 @@ class MoleculeLJ : public autopas::Particle {
       typename autopas::utils::SoAType<MoleculeLJ *, size_t /*id*/, double /*x*/, double /*y*/, double /*z*/,
                                        double /*vx*/, double /*vy*/, double /*vz*/, double /*fx*/, double /*fy*/,
                                        double /*fz*/, double /*oldFx*/, double /*oldFy*/, double /*oldFz*/,
-                                       size_t /*typeid*/, autopas::OwnershipState /*ownershipState*/>::Type;
+                                       double /*tempFx*/, double /*tempFy*/, double /*tempFz*/, size_t /*typeid*/,
+                                       autopas::OwnershipState /*ownershipState*/>::Type;
 
   bool operator==(const MoleculeLJ &rhs) const {
-    return std::tie(_r, _v, _forces, _id) == std::tie(rhs._r, rhs._v, rhs._forces, rhs._id);
+    return std::tie(_r, _v, _f, _id) == std::tie(rhs._r, rhs._v, rhs._f, rhs._id);
   }
 
   bool operator!=(const MoleculeLJ &rhs) const { return not(rhs == *this); }
@@ -118,6 +122,12 @@ class MoleculeLJ : public autopas::Particle {
       return getOldF()[1];
     } else if constexpr (attribute == AttributeNames::oldForceZ) {
       return getOldF()[2];
+    } else if constexpr (attribute == AttributeNames::tempForceX) {
+      return getTempF()[0];
+    } else if constexpr (attribute == AttributeNames::tempForceY) {
+      return getTempF()[1];
+    } else if constexpr (attribute == AttributeNames::tempForceZ) {
+      return getTempF()[2];
     } else if constexpr (attribute == AttributeNames::typeId) {
       return getTypeId();
     } else if constexpr (attribute == AttributeNames::ownershipState) {
@@ -151,16 +161,22 @@ class MoleculeLJ : public autopas::Particle {
     } else if constexpr (attribute == AttributeNames::velocityZ) {
       _v[2] = value;
     } else if constexpr (attribute == AttributeNames::forceX) {
-      _forces[forceIndex][0] = value;
+      _f[0] = value;
     } else if constexpr (attribute == AttributeNames::forceY) {
-      _forces[forceIndex][1] = value;
+      _f[1] = value;
     } else if constexpr (attribute == AttributeNames::forceZ) {
-      _forces[forceIndex][2] = value;
+      _f[2] = value;
     } else if constexpr (attribute == AttributeNames::oldForceX) {
       _oldF[0] = value;
     } else if constexpr (attribute == AttributeNames::oldForceY) {
       _oldF[1] = value;
     } else if constexpr (attribute == AttributeNames::oldForceZ) {
+      _oldF[2] = value;
+    } else if constexpr (attribute == AttributeNames::tempForceX) {
+      _oldF[0] = value;
+    } else if constexpr (attribute == AttributeNames::tempForceY) {
+      _oldF[1] = value;
+    } else if constexpr (attribute == AttributeNames::tempForceZ) {
       _oldF[2] = value;
     } else if constexpr (attribute == AttributeNames::typeId) {
       setTypeId(value);
@@ -175,13 +191,13 @@ class MoleculeLJ : public autopas::Particle {
    * get the force acting on the particle
    * @return force
    */
-  [[nodiscard]] const std::array<double, 3> &getF() const { return _forces[forceIndex]; }
+  [[nodiscard]] const std::array<double, 3> &getF() const { return _f; }
 
   /**
    * Set the force acting on the particle
    * @param f force
    */
-  void setF(const std::array<double, 3> &f) { _forces[forceIndex] = f; }
+  void setF(const std::array<double, 3> &f) { _f = f; }
 
   /**
    * Add a partial force to the force acting on the particle
@@ -189,7 +205,7 @@ class MoleculeLJ : public autopas::Particle {
    */
   void addF(const std::array<double, 3> &f) {
     using namespace autopas::utils::ArrayMath::literals;
-    _forces[forceIndex] += f;
+    _f += f;
   }
 
   /**
@@ -198,7 +214,7 @@ class MoleculeLJ : public autopas::Particle {
    */
   void subF(const std::array<double, 3> &f) {
     using namespace autopas::utils::ArrayMath::literals;
-    _forces[forceIndex] -= f;
+    _f -= f;
   }
 
   /**
@@ -212,6 +228,18 @@ class MoleculeLJ : public autopas::Particle {
    * @param oldForce
    */
   void setOldF(const std::array<double, 3> &oldForce);
+
+  /**
+   * Get the temp force.
+   * @return
+   */
+  [[nodiscard]] const std::array<double, 3> &getTempF() const;
+
+  /**
+   * Set temp force.
+   * @param tempForce
+   */
+  void setTempF(const std::array<double, 3> &tempForce);
 
   /**
    * Get TypeId.
@@ -231,8 +259,6 @@ class MoleculeLJ : public autopas::Particle {
    */
   [[nodiscard]] std::string toString() const override;
 
-  static void setForceIndex(size_t index) { forceIndex = index; }
-
  protected:
   /**
    * Molecule type id. In single-site simulations, this is used as a siteId to look up site attributes in the particle
@@ -248,9 +274,9 @@ class MoleculeLJ : public autopas::Particle {
    */
   std::array<double, 3> _oldF = {0., 0., 0.};
 
-  std::array<std::array<double, 3>, 2> _forces = {{{0., 0., 0.}, {0., 0., 0.}}};
+  std::array<double, 3> _tempF = {0., 0., 0.};
 
-  static inline size_t forceIndex{0};
+  std::array<double, 3> _f = {0., 0., 0.};
 };
 
 }  // namespace mdLib

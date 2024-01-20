@@ -140,7 +140,7 @@ void calculateQuaternionsAndResetTorques(autopas::AutoPas<ParticleType> &autoPas
 
 void calculateVelocities(autopas::AutoPas<ParticleType> &autoPasContainer,
                          const ParticlePropertiesLibraryType &particlePropertiesLibrary, const double &deltaT,
-                         const bool outerRespaStep, const size_t respaStepSize) {
+                         bool resetForces, const bool outerRespaStep, const size_t respaStepSize) {
   // helper declarations for operations with vector
   using namespace autopas::utils::ArrayMath::literals;
 
@@ -154,9 +154,16 @@ void calculateVelocities(autopas::AutoPas<ParticleType> &autoPasContainer,
       const auto oldForce = iter->getOldF();
       const auto changeInVel = (force + oldForce) * (deltaT / (2 * molecularMass));
       iter->addV(changeInVel);
+      if (resetForces) {
+        iter->setTempF(force);
+        iter->setF({0, 0, 0});
+      }
     } else {
       const auto changeInVel = (force * (1.0 / molecularMass)) * 0.5 * deltaT * static_cast<double>(respaStepSize);
       iter->addV(changeInVel);
+      if (resetForces) {
+        iter->setF(iter->getTempF());
+      }
     }
   }
 }

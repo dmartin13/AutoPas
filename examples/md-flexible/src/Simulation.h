@@ -282,7 +282,7 @@ class Simulation {
   /**
    * Updates the velocities of particles in the local AutoPas container.
    */
-  void updateVelocities(RespaIterationType respaIterationType = RespaIterationType::NoRespa);
+  void updateVelocities(bool resetForces, RespaIterationType respaIterationType = RespaIterationType::NoRespa);
 
   /**
    * Updates the angular velocities of the particles in the local AutoPas container.
