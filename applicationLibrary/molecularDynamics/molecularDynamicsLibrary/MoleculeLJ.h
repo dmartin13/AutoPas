@@ -173,11 +173,11 @@ class MoleculeLJ : public autopas::Particle {
     } else if constexpr (attribute == AttributeNames::oldForceZ) {
       _oldF[2] = value;
     } else if constexpr (attribute == AttributeNames::tempForceX) {
-      _oldF[0] = value;
+      _tempF[0] = value;
     } else if constexpr (attribute == AttributeNames::tempForceY) {
-      _oldF[1] = value;
+      _tempF[1] = value;
     } else if constexpr (attribute == AttributeNames::tempForceZ) {
-      _oldF[2] = value;
+      _tempF[2] = value;
     } else if constexpr (attribute == AttributeNames::typeId) {
       setTypeId(value);
     } else if constexpr (attribute == AttributeNames::ownershipState) {
