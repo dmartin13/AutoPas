@@ -581,6 +581,12 @@ class LJFunctor
   constexpr static bool getMixing() { return useMixing; }
 
   /**
+   *
+   * @return calculateGlobals
+   */
+  constexpr static bool getCalculateGlobals() { return calculateGlobals; }
+
+  /**
    * Get the number of flops used per kernel call for a given particle pair. This should count the
    * floating point operations needed for two particles that lie within a cutoff radius, having already calculated the
    * distance.
@@ -780,7 +786,8 @@ class LJFunctor
           ownedStateArr[tmpj] = ownedStatePtr[neighborListPtr[joff + tmpj]];
         }
         // do omp simd with reduction of the interaction
-#pragma omp simd reduction(+ : fxacc, fyacc, fzacc, potentialEnergySum, virialSumX, virialSumY, virialSumZ) safelen(vecsize)
+#pragma omp simd reduction(+ : fxacc, fyacc, fzacc, potentialEnergySum, virialSumX, virialSumY, virialSumZ) \
+    safelen(vecsize)
         for (size_t j = 0; j < vecsize; j++) {
           if constexpr (useMixing) {
             sigmaSquared = sigmaSquareds[j];

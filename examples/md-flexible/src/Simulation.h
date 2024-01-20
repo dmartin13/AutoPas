@@ -235,6 +235,12 @@ class Simulation {
    */
   bool _createVtkFiles;
 
+  std::vector<double> _potentialEnergy;
+
+  std::vector<double> _totalEnergy;
+
+  std::vector<double> _kineticEnergy;
+
  private:
   /**
    * Returns the number of expected maximum number of iterations of the Simulation.
@@ -277,7 +283,9 @@ class Simulation {
    * Updates the forces of particles in the local AutoPas container. Includes torque updates (if an appropriate functor
    * is used).
    */
-  void updateForces(ForceType forceTypeToCalculate);
+  std::optional<double> updateForces(ForceType forceTypeToCalculate);
+
+  double calculateKineticEnergy();
 
   /**
    * Updates the velocities of particles in the local AutoPas container.
@@ -323,13 +331,13 @@ class Simulation {
    * Calculates the pairwise forces between particles in the autopas container.
    * @return Tells the user if the current iteration of force calculations was a tuning iteration.
    */
-  bool calculatePairwiseForces();
+  std::pair<bool, std::optional<double>> calculatePairwiseForces();
 
   /**
    * Calculates the 3-body forces between particles in the autopas container.
    * @return Tells the user if the current iteration of force calculations was a tuning iteration.
    */
-  bool calculateTriwiseForces();
+  std::pair<bool, std::optional<double>> calculateTriwiseForces();
 
   /**
    * Adds global forces to the particles in the container.

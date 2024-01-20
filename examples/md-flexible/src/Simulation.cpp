@@ -306,9 +306,15 @@ void Simulation::run() {
 
     // if respa for integrating threeBody forces is used then only calculate twobody interactions here
     if (threeBodyInteractionsInvolved and (not respaActive)) {
-      updateForces(ForceType::TwoAndThreeBody);
+      const auto potentialEnergy = updateForces(ForceType::TwoAndThreeBody);
+      if (potentialEnergy.has_value()) {
+        _potentialEnergy.push_back(potentialEnergy.value());
+      }
     } else {
-      updateForces(ForceType::TwoBody);
+      const auto potentialEnergy = updateForces(ForceType::TwoBody);
+      if (potentialEnergy.has_value() and nextIsRespaIteration) {
+        _potentialEnergy.push_back(potentialEnergy.value());
+      }
     }
 
     if (_configuration.deltaT.value != 0) {
@@ -318,13 +324,25 @@ void Simulation::run() {
 #endif
       updateThermostat();
 
+      if (not respaActive) {
+        // if respa is not active then calculate kinetic energy here
+        _kineticEnergy.push_back(calculateKineticEnergy());
+      }
+
       if (respaActive) {
         // check if the next iteration is a respa iteration
         if ((_iteration + 1) % _configuration.respaStepSize.value == 0) {
           // update 3-body force
-          updateForces(ForceType::ThreeBody);
+          const auto potentialEnergy = updateForces(ForceType::ThreeBody);
+          if (potentialEnergy.has_value()) {
+            // add it to the two body energy to store the overall energy of the system after one full timestep
+            _potentialEnergy.back() = _potentialEnergy.back() + potentialEnergy.value();
+          }
           // update velocity3Body with respaStepSize as timestep factor
           updateVelocities(false, RespaIterationType::OuterStep);
+
+          // if respa is active then calculate the kinetic energy after each full timestep
+          _kineticEnergy.push_back(calculateKineticEnergy());
         }
       }
     }
@@ -351,6 +369,28 @@ void Simulation::run() {
   if (_createVtkFiles) {
     _vtkWriter->recordTimestep(_iteration, *_autoPasContainer, *_domainDecomposition);
   }
+
+  // print out the final potental energy and kinetic energy
+  if (_potentialEnergy.size() != _kineticEnergy.size()) {
+    throw autopas::utils::ExceptionHandler::AutoPasException(
+        "_potentialEnergy.size() != _kineticEnergy.size(): somethong is wrong with the globals calculation");
+  }
+  std::cout << "potential energy: [";
+  for (size_t i = 0; i < _potentialEnergy.size(); ++i) {
+    std::cout << _potentialEnergy[i];
+    if (i != _potentialEnergy.size() - 1) {
+      std::cout << ", ";
+    }
+  }
+  std::cout << "]" << std::endl;
+  std::cout << "kinetic energy: [";
+  for (size_t i = 0; i < _kineticEnergy.size(); ++i) {
+    std::cout << _kineticEnergy[i];
+    if (i != _kineticEnergy.size() - 1) {
+      std::cout << ", ";
+    }
+  }
+  std::cout << "]" << std::endl;
 }
 
 std::tuple<size_t, bool> Simulation::estimateNumberOfIterations() const {
@@ -481,17 +521,22 @@ void Simulation::updateQuaternions() {
   _timers.quaternionUpdate.stop();
 }
 
-void Simulation::updateForces(ForceType forceTypeToCalculate) {
+std::optional<double> Simulation::updateForces(ForceType forceTypeToCalculate) {
   _timers.forceUpdateTotal.start();
 
   bool isTuningIteration = false;
   long timeIteration = 0;
+  double potentialEnergy = 0;
 
   if ((forceTypeToCalculate == ForceType::TwoBody or forceTypeToCalculate == ForceType::TwoAndThreeBody) and
       _configuration.getInteractionTypes().count(autopas::InteractionTypeOption::pairwise)) {
     // Calculate pairwise forces
     _timers.forceUpdatePairwise.start();
-    isTuningIteration = (isTuningIteration | calculatePairwiseForces());
+    std::pair<bool, std::optional<double>> wasTuningIterationAndPotentialEnergy = calculatePairwiseForces();
+    isTuningIteration = (isTuningIteration | std::get<0>(wasTuningIterationAndPotentialEnergy));
+    if (std::get<1>(wasTuningIterationAndPotentialEnergy).has_value()) {
+      potentialEnergy += std::get<1>(wasTuningIterationAndPotentialEnergy).value();
+    }
     timeIteration += _timers.forceUpdatePairwise.stop();
   }
 
@@ -503,7 +548,11 @@ void Simulation::updateForces(ForceType forceTypeToCalculate) {
       _configuration.getInteractionTypes().count(autopas::InteractionTypeOption::threeBody)) {
     // Calculate triwise forces
     _timers.forceUpdateTriwise.start();
-    isTuningIteration = (isTuningIteration | calculateTriwiseForces());
+    std::pair<bool, std::optional<double>> wasTuningIterationAndPotentialEnergy = calculateTriwiseForces();
+    isTuningIteration = (isTuningIteration | std::get<0>(wasTuningIterationAndPotentialEnergy));
+    if (std::get<1>(wasTuningIterationAndPotentialEnergy).has_value()) {
+      potentialEnergy += std::get<1>(wasTuningIterationAndPotentialEnergy).value();
+    }
     timeIteration += _timers.forceUpdateTriwise.stop();
   }
 
@@ -528,6 +577,11 @@ void Simulation::updateForces(ForceType forceTypeToCalculate) {
   _timers.forceUpdateGlobal.stop();
 
   _timers.forceUpdateTotal.stop();
+
+  if (potentialEnergy != 0) {
+    return potentialEnergy;
+  }
+  return std::nullopt;
 }
 
 void Simulation::updateVelocities(bool resetForces, RespaIterationType respaIterationType) {
@@ -547,6 +601,19 @@ void Simulation::updateVelocities(bool resetForces, RespaIterationType respaIter
 
     _timers.velocityUpdate.stop();
   }
+}
+
+double Simulation::calculateKineticEnergy() {
+  double sum = 0;
+#ifdef AUTOPAS_OPENMP
+#pragma omp parallel shared(_autoPasContainer) reduction(+ : sum)
+#endif
+  for (auto particle = _autoPasContainer->begin(autopas::IteratorBehavior::owned); particle.isValid(); ++particle) {
+    const auto mass = _configuration.getParticlePropertiesLibrary()->getMolMass(particle->getTypeId());
+    sum += mass * autopas::utils::ArrayMath::dot(particle->getV(), particle->getV());
+  }
+
+  return sum * 0.5;
 }
 
 void Simulation::updateAngularVelocities() {
@@ -574,16 +641,30 @@ long Simulation::accumulateTime(const long &time) {
   return reducedTime;
 }
 
-bool Simulation::calculatePairwiseForces() {
-  const auto wasTuningIteration = applyWithChosenFunctor<bool>(
-      [&](auto functor) { return _autoPasContainer->template computeInteractions(&functor); });
-  return wasTuningIteration;
+std::pair<bool, std::optional<double>> Simulation::calculatePairwiseForces() {
+  const auto wasTuningIterationAndPotentialEnergy =
+      applyWithChosenFunctor<std::pair<bool, std::optional<double>>>([&](auto functor) {
+        auto wasTuningIteration = _autoPasContainer->template computeInteractions(&functor);
+        if (functor.getCalculateGlobals()) {
+          const auto potentialEnergy = functor.getPotentialEnergy();
+          return std::make_pair<bool, std::optional<double>>(std::move(wasTuningIteration), potentialEnergy);
+        }
+        return std::make_pair<bool, std::optional<double>>(std::move(wasTuningIteration), std::nullopt);
+      });
+  return wasTuningIterationAndPotentialEnergy;
 }
 
-bool Simulation::calculateTriwiseForces() {
-  const auto wasTuningIteration = applyWithChosenFunctor3B<bool>(
-      [&](auto functor) { return _autoPasContainer->template computeInteractions(&functor); });
-  return wasTuningIteration;
+std::pair<bool, std::optional<double>> Simulation::calculateTriwiseForces() {
+  const auto wasTuningIterationAndPotentialEnergy =
+      applyWithChosenFunctor3B<std::pair<bool, std::optional<double>>>([&](auto functor) {
+        auto wasTuningIteration = _autoPasContainer->template computeInteractions(&functor);
+        if (functor.getCalculateGlobals()) {
+          const auto potentialEnergy = functor.getPotentialEnergy();
+          return std::make_pair<bool, std::optional<double>>(std::move(wasTuningIteration), potentialEnergy);
+        }
+        return std::make_pair<bool, std::optional<double>>(std::move(wasTuningIteration), std::nullopt);
+      });
+  return wasTuningIterationAndPotentialEnergy;
 }
 
 void Simulation::calculateGlobalForces(const std::array<double, 3> &globalForce) {
