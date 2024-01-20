@@ -327,6 +327,9 @@ void Simulation::run() {
       if (not respaActive) {
         // if respa is not active then calculate kinetic energy here
         _kineticEnergy.push_back(calculateKineticEnergy());
+
+        // record the total energy of the system after each timestep;
+        _totalEnergy.push_back(_potentialEnergy.back() + _kineticEnergy.back());
       }
 
       if (respaActive) {
@@ -343,6 +346,9 @@ void Simulation::run() {
 
           // if respa is active then calculate the kinetic energy after each full timestep
           _kineticEnergy.push_back(calculateKineticEnergy());
+
+          // record the total energy of the system after each timestep;
+          _totalEnergy.push_back(_potentialEnergy.back() + _kineticEnergy.back());
         }
       }
     }
@@ -370,27 +376,45 @@ void Simulation::run() {
     _vtkWriter->recordTimestep(_iteration, *_autoPasContainer, *_domainDecomposition);
   }
 
-  // print out the final potental energy and kinetic energy
-  if (_potentialEnergy.size() != _kineticEnergy.size()) {
-    throw autopas::utils::ExceptionHandler::AutoPasException(
-        "_potentialEnergy.size() != _kineticEnergy.size(): somethong is wrong with the globals calculation");
-  }
-  std::cout << "potential energy: [";
-  for (size_t i = 0; i < _potentialEnergy.size(); ++i) {
-    std::cout << _potentialEnergy[i];
-    if (i != _potentialEnergy.size() - 1) {
-      std::cout << ", ";
+  // print out the final potental energy, kinetic energy and total energy
+  {
+    if ((_potentialEnergy.size() != _kineticEnergy.size()) or (_potentialEnergy.size() != _totalEnergy.size()) or
+        (_totalEnergy.size() != _kineticEnergy.size())) {
+      throw autopas::utils::ExceptionHandler::AutoPasException(
+          "_potentialEnergy.size() != _kineticEnergy.size() != _totalEnergy.size(): somethong is wrong with the "
+          "globals calculation");
     }
-  }
-  std::cout << "]" << std::endl;
-  std::cout << "kinetic energy: [";
-  for (size_t i = 0; i < _kineticEnergy.size(); ++i) {
-    std::cout << _kineticEnergy[i];
-    if (i != _kineticEnergy.size() - 1) {
-      std::cout << ", ";
+
+    // potential energy
+    std::cout << "potential energy: [";
+    for (size_t i = 0; i < _potentialEnergy.size(); ++i) {
+      std::cout << _potentialEnergy[i];
+      if (i != _potentialEnergy.size() - 1) {
+        std::cout << ", ";
+      }
     }
+    std::cout << "]" << std::endl;
+
+    // kinetic energy
+    std::cout << "kinetic energy: [";
+    for (size_t i = 0; i < _kineticEnergy.size(); ++i) {
+      std::cout << _kineticEnergy[i];
+      if (i != _kineticEnergy.size() - 1) {
+        std::cout << ", ";
+      }
+    }
+
+    // total energy
+    std::cout << "]" << std::endl;
+    std::cout << "total energy: [";
+    for (size_t i = 0; i < _totalEnergy.size(); ++i) {
+      std::cout << _totalEnergy[i];
+      if (i != _totalEnergy.size() - 1) {
+        std::cout << ", ";
+      }
+    }
+    std::cout << "]" << std::endl;
   }
-  std::cout << "]" << std::endl;
 }
 
 std::tuple<size_t, bool> Simulation::estimateNumberOfIterations() const {
