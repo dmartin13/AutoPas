@@ -388,7 +388,7 @@ void Simulation::run() {
     // potential energy
     std::cout << "potential energy: [";
     for (size_t i = 0; i < _potentialEnergy.size(); ++i) {
-      std::cout << _potentialEnergy[i];
+      std::cout << std::setprecision(15) << _potentialEnergy[i];
       if (i != _potentialEnergy.size() - 1) {
         std::cout << ", ";
       }
@@ -398,7 +398,7 @@ void Simulation::run() {
     // kinetic energy
     std::cout << "kinetic energy: [";
     for (size_t i = 0; i < _kineticEnergy.size(); ++i) {
-      std::cout << _kineticEnergy[i];
+      std::cout << std::setprecision(15) << _kineticEnergy[i];
       if (i != _kineticEnergy.size() - 1) {
         std::cout << ", ";
       }
@@ -408,12 +408,27 @@ void Simulation::run() {
     std::cout << "]" << std::endl;
     std::cout << "total energy: [";
     for (size_t i = 0; i < _totalEnergy.size(); ++i) {
-      std::cout << _totalEnergy[i];
+      std::cout << std::setprecision(15) << _totalEnergy[i];
       if (i != _totalEnergy.size() - 1) {
         std::cout << ", ";
       }
     }
     std::cout << "]" << std::endl;
+
+    // calculate the RelativeVariationInTrueEnergy
+    const auto numSteps = _totalEnergy.size();
+    const auto avgKineticEnergy =
+        std::reduce(_kineticEnergy.begin(), _kineticEnergy.end()) / static_cast<double>(numSteps);
+    const auto avgTotalEnergy = std::reduce(_totalEnergy.begin(), _totalEnergy.end()) / static_cast<double>(numSteps);
+
+    double sum = 0.0;
+    for (const auto eT : _totalEnergy) {
+      sum += std::abs(eT - avgTotalEnergy);
+    }
+
+    double rvite = sum / avgKineticEnergy;
+
+    std::cout << "RelativeVariationInTrueEnergy: " << std::setprecision(15) << rvite << std::endl;
   }
 }
 
