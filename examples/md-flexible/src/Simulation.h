@@ -235,7 +235,9 @@ class Simulation {
    */
   bool _createVtkFiles;
 
-  std::vector<double> _potentialEnergy;
+  std::vector<double> _potentialEnergyTwoBody;
+
+  std::vector<double> _potentialEnergyThreeBody;
 
   std::vector<double> _totalEnergy;
 
@@ -283,7 +285,7 @@ class Simulation {
    * Updates the forces of particles in the local AutoPas container. Includes torque updates (if an appropriate functor
    * is used).
    */
-  std::optional<double> updateForces(ForceType forceTypeToCalculate);
+  std::optional<std::pair<double, double>> updateForces(ForceType forceTypeToCalculate);
 
   double calculateKineticEnergy();
 

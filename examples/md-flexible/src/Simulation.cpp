@@ -258,7 +258,11 @@ void Simulation::run() {
         if (respaActive) {
           updateForces(ForceType::TwoBody);
         } else {
-          updateForces(ForceType::TwoAndThreeBody);
+          if (threeBodyInteractionsInvolved) {
+            updateForces(ForceType::TwoAndThreeBody);
+          } else {
+            updateForces(ForceType::TwoBody);
+          }
         }
       }
 
@@ -317,12 +321,13 @@ void Simulation::run() {
     if (threeBodyInteractionsInvolved and (not respaActive)) {
       const auto potentialEnergy = updateForces(ForceType::TwoAndThreeBody);
       if (potentialEnergy.has_value()) {
-        _potentialEnergy.push_back(potentialEnergy.value());
+        _potentialEnergyTwoBody.push_back(std::get<0>(potentialEnergy.value()));
+        _potentialEnergyThreeBody.push_back(std::get<1>(potentialEnergy.value()));
       }
     } else {
       const auto potentialEnergy = updateForces(ForceType::TwoBody);
-      if (potentialEnergy.has_value() and nextIsRespaIteration) {
-        _potentialEnergy.push_back(potentialEnergy.value());
+      if (potentialEnergy.has_value() and ((respaActive and nextIsRespaIteration) or (not respaActive))) {
+        _potentialEnergyTwoBody.push_back(std::get<0>(potentialEnergy.value()));
       }
     }
 
@@ -338,17 +343,20 @@ void Simulation::run() {
         _kineticEnergy.push_back(calculateKineticEnergy());
 
         // record the total energy of the system after each timestep;
-        _totalEnergy.push_back(_potentialEnergy.back() + _kineticEnergy.back());
-      }
-
-      if (respaActive) {
+        if (threeBodyInteractionsInvolved) {
+          _totalEnergy.push_back(_potentialEnergyTwoBody.back() + _potentialEnergyThreeBody.back() +
+                                 _kineticEnergy.back());
+        } else {
+          _totalEnergy.push_back(_potentialEnergyTwoBody.back() + _kineticEnergy.back());
+        }
+      } else {
         // check if the next iteration is a respa iteration
         if ((_iteration + 1) % _configuration.respaStepSize.value == 0) {
           // update 3-body force
           const auto potentialEnergy = updateForces(ForceType::ThreeBody);
           if (potentialEnergy.has_value()) {
             // add it to the two body energy to store the overall energy of the system after one full timestep
-            _potentialEnergy.back() = _potentialEnergy.back() + potentialEnergy.value();
+            _potentialEnergyThreeBody.push_back(std::get<1>(potentialEnergy.value()));
           }
           // update velocity3Body with respaStepSize as timestep factor
           updateVelocities(false, RespaIterationType::OuterStep);
@@ -357,7 +365,8 @@ void Simulation::run() {
           _kineticEnergy.push_back(calculateKineticEnergy());
 
           // record the total energy of the system after each timestep;
-          _totalEnergy.push_back(_potentialEnergy.back() + _kineticEnergy.back());
+          _totalEnergy.push_back(_potentialEnergyTwoBody.back() + _potentialEnergyThreeBody.back() +
+                                 _kineticEnergy.back());
         }
       }
     }
@@ -387,22 +396,42 @@ void Simulation::run() {
 
   // print out the final potental energy, kinetic energy and total energy
   {
-    if ((_potentialEnergy.size() != _kineticEnergy.size()) or (_potentialEnergy.size() != _totalEnergy.size()) or
-        (_totalEnergy.size() != _kineticEnergy.size())) {
+    bool allVectorSizesEqual = false;
+    std::array<size_t, 4> sizesOfVectors = {_potentialEnergyTwoBody.size(), _potentialEnergyTwoBody.size(),
+                                            _kineticEnergy.size(), _totalEnergy.size()};
+    if (threeBodyInteractionsInvolved) {
+      sizesOfVectors = {_potentialEnergyTwoBody.size(), _potentialEnergyThreeBody.size(), _kineticEnergy.size(),
+                        _totalEnergy.size()};
+    }
+    allVectorSizesEqual = std::all_of(sizesOfVectors.begin(), sizesOfVectors.end(),
+                                      [&sizesOfVectors](const auto value) { return value == sizesOfVectors[0]; });
+    if (!allVectorSizesEqual) {
       throw autopas::utils::ExceptionHandler::AutoPasException(
           "_potentialEnergy.size() != _kineticEnergy.size() != _totalEnergy.size(): somethong is wrong with the "
           "globals calculation");
     }
 
-    // potential energy
-    std::cout << "potential energy: [";
-    for (size_t i = 0; i < _potentialEnergy.size(); ++i) {
-      std::cout << std::setprecision(15) << _potentialEnergy[i];
-      if (i != _potentialEnergy.size() - 1) {
+    // potential energy two body
+    std::cout << "potential energy two-body: [";
+    for (size_t i = 0; i < _potentialEnergyTwoBody.size(); ++i) {
+      std::cout << std::setprecision(15) << _potentialEnergyTwoBody[i];
+      if (i != _potentialEnergyTwoBody.size() - 1) {
         std::cout << ", ";
       }
     }
     std::cout << "]" << std::endl;
+
+    if (threeBodyInteractionsInvolved) {
+      // potential energy three body
+      std::cout << "potential energy three-body: [";
+      for (size_t i = 0; i < _potentialEnergyThreeBody.size(); ++i) {
+        std::cout << std::setprecision(15) << _potentialEnergyThreeBody[i];
+        if (i != _potentialEnergyThreeBody.size() - 1) {
+          std::cout << ", ";
+        }
+      }
+      std::cout << "]" << std::endl;
+    }
 
     // kinetic energy
     std::cout << "kinetic energy: [";
@@ -569,12 +598,13 @@ void Simulation::updateQuaternions() {
   _timers.quaternionUpdate.stop();
 }
 
-std::optional<double> Simulation::updateForces(ForceType forceTypeToCalculate) {
+std::optional<std::pair<double, double>> Simulation::updateForces(ForceType forceTypeToCalculate) {
   _timers.forceUpdateTotal.start();
 
   bool isTuningIteration = false;
   long timeIteration = 0;
-  double potentialEnergy = 0;
+  double potentialEnergyTwoBody = 0;
+  double potentialEnergyThreeBody = 0;
 
   if ((forceTypeToCalculate == ForceType::TwoBody or forceTypeToCalculate == ForceType::TwoAndThreeBody) and
       _configuration.getInteractionTypes().count(autopas::InteractionTypeOption::pairwise)) {
@@ -583,7 +613,7 @@ std::optional<double> Simulation::updateForces(ForceType forceTypeToCalculate) {
     std::pair<bool, std::optional<double>> wasTuningIterationAndPotentialEnergy = calculatePairwiseForces();
     isTuningIteration = (isTuningIteration | std::get<0>(wasTuningIterationAndPotentialEnergy));
     if (std::get<1>(wasTuningIterationAndPotentialEnergy).has_value()) {
-      potentialEnergy += std::get<1>(wasTuningIterationAndPotentialEnergy).value();
+      potentialEnergyTwoBody += std::get<1>(wasTuningIterationAndPotentialEnergy).value();
     }
     timeIteration += _timers.forceUpdatePairwise.stop();
   }
@@ -599,7 +629,7 @@ std::optional<double> Simulation::updateForces(ForceType forceTypeToCalculate) {
     std::pair<bool, std::optional<double>> wasTuningIterationAndPotentialEnergy = calculateTriwiseForces();
     isTuningIteration = (isTuningIteration | std::get<0>(wasTuningIterationAndPotentialEnergy));
     if (std::get<1>(wasTuningIterationAndPotentialEnergy).has_value()) {
-      potentialEnergy += std::get<1>(wasTuningIterationAndPotentialEnergy).value();
+      potentialEnergyThreeBody += std::get<1>(wasTuningIterationAndPotentialEnergy).value();
     }
     timeIteration += _timers.forceUpdateTriwise.stop();
   }
@@ -626,8 +656,8 @@ std::optional<double> Simulation::updateForces(ForceType forceTypeToCalculate) {
 
   _timers.forceUpdateTotal.stop();
 
-  if (potentialEnergy != 0) {
-    return potentialEnergy;
+  if (potentialEnergyTwoBody != 0 or potentialEnergyThreeBody != 0) {
+    return std::make_pair<double, double>(std::move(potentialEnergyTwoBody), std::move(potentialEnergyThreeBody));
   }
   return std::nullopt;
 }
