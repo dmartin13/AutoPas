@@ -253,6 +253,15 @@ void Simulation::run() {
         updateVelocities(/*resetForce*/ true, RespaIterationType::OuterStep);
       }
 
+      if (_iteration == 0) {
+        // initial force calculation (only 2-body if respa is used; 2-body and 3-body if respa is not used)
+        if (respaActive) {
+          updateForces(ForceType::TwoBody);
+        } else {
+          updateForces(ForceType::TwoAndThreeBody);
+        }
+      }
+
       updatePositions();
 #if MD_FLEXIBLE_MODE == MULTISITE
       updateQuaternions();
