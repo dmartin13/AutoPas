@@ -303,7 +303,7 @@ class Simulation {
    * Updates the thermostat of for the local domain.
    * @todo The thermostat should act globally and therefore needs to be communicated to all processes.
    */
-  void updateThermostat();
+  void updateThermostat(bool skipIterationCheck);
 
   /**
    * This simulation's domain decomposition.

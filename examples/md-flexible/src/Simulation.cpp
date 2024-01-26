@@ -196,6 +196,12 @@ Simulation::Simulation(const MDFlexConfig &configuration,
     // Set the simulation directly to the desired initial temperature.
     Thermostat::apply(*_autoPasContainer, *(_configuration.getParticlePropertiesLibrary()),
                       _configuration.initTemperature.value, std::numeric_limits<double>::max());
+
+    if (_configuration.respaStepSize.value > 1) {
+      if (_configuration.thermostatInterval.value % _configuration.respaStepSize.value != 0) {
+        throw std::runtime_error("The thermostat interval must be divisible by the respa-stepsize");
+      }
+    }
   }
 
   if (_configuration.respaStepSize.value > 1) {
@@ -336,7 +342,9 @@ void Simulation::run() {
 #if MD_FLEXIBLE_MODE == MULTISITE
       updateAngularVelocities();
 #endif
-      updateThermostat();
+      if ((not respaActive) and ((_iteration + 1) % _configuration.thermostatInterval.value == 0)) {
+        updateThermostat(true);
+      }
 
       if (not respaActive) {
         // if respa is not active then calculate kinetic energy here
@@ -360,6 +368,10 @@ void Simulation::run() {
           }
           // update velocity3Body with respaStepSize as timestep factor
           updateVelocities(false, RespaIterationType::OuterStep);
+
+          if ((_iteration + 1) % _configuration.thermostatInterval.value == 0) {
+            updateThermostat(/*skipIterationCheck*/ true);
+          }
 
           // if respa is active then calculate the kinetic energy after each full timestep
           _kineticEnergy.push_back(calculateKineticEnergy());
@@ -703,8 +715,10 @@ void Simulation::updateAngularVelocities() {
   _timers.angularVelocityUpdate.stop();
 }
 
-void Simulation::updateThermostat() {
-  if (_configuration.useThermostat.value and (_iteration % _configuration.thermostatInterval.value) == 0) {
+void Simulation::updateThermostat(bool skipIterationCheck) {
+  if (_configuration.useThermostat.value and
+      (skipIterationCheck or
+       ((not skipIterationCheck) and (_iteration % _configuration.thermostatInterval.value) == 0))) {
     _timers.thermostat.start();
     Thermostat::apply(*_autoPasContainer, *(_configuration.getParticlePropertiesLibrary()),
                       _configuration.targetTemperature.value, _configuration.deltaTemp.value);
