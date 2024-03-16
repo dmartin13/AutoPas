@@ -342,8 +342,10 @@ void Simulation::run() {
 #if MD_FLEXIBLE_MODE == MULTISITE
       updateAngularVelocities();
 #endif
-      if ((not respaActive) and ((_iteration + 1) % _configuration.thermostatInterval.value == 0)) {
-        updateThermostat(true);
+      if (_configuration.useThermostat.value) {
+        if ((not respaActive) and ((_iteration + 1) % _configuration.thermostatInterval.value == 0)) {
+          updateThermostat(true);
+        }
       }
 
       if (not respaActive) {
@@ -443,6 +445,16 @@ void Simulation::run() {
         }
       }
       std::cout << "]" << std::endl;
+    } else {
+      // print out only zeros
+      std::cout << "potential energy three-body: [";
+      for (size_t i = 0; i < _potentialEnergyTwoBody.size(); ++i) {
+        std::cout << 0;
+        if (i != _potentialEnergyTwoBody.size() - 1) {
+          std::cout << ", ";
+        }
+      }
+      std::cout << "]" << std::endl;
     }
 
     // kinetic energy
@@ -476,7 +488,7 @@ void Simulation::run() {
       sum += std::abs(eT - avgTotalEnergy);
     }
 
-    double rvite = sum / avgKineticEnergy;
+    double rvite = sum / (avgKineticEnergy * static_cast<double>(_configuration.iterations.value));
 
     std::cout << "RelativeVariationInTrueEnergy: " << std::setprecision(15) << rvite << std::endl;
   }
