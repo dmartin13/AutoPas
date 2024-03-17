@@ -371,8 +371,10 @@ void Simulation::run() {
           // update velocity3Body with respaStepSize as timestep factor
           updateVelocities(false, RespaIterationType::OuterStep);
 
-          if ((_iteration + 1) % _configuration.thermostatInterval.value == 0) {
-            updateThermostat(/*skipIterationCheck*/ true);
+          if (_configuration.useThermostat.value) {
+            if ((_iteration + 1) % _configuration.thermostatInterval.value == 0) {
+              updateThermostat(/*skipIterationCheck*/ true);
+            }
           }
 
           // if respa is active then calculate the kinetic energy after each full timestep
